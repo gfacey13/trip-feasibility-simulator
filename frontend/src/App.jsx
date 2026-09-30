@@ -1,5 +1,6 @@
 import { useState} from 'react'
 import './App.css'
+import TravelTime from "./TravelTime";
 import TripInputForm from "./TripInputForm";
 import TravelTime from "./TravelTime";
 
