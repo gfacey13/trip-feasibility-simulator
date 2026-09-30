@@ -16,10 +16,6 @@ function TravelTime() {
       ? (Number(distance) / speeds[transportMethod]).toFixed(1)
       : null;
 
-  const tripFeasible =
-    travelTime !== null
-      ? Number(travelTime) <= 8
-      : null;
 
   return (
     <>
@@ -77,13 +73,7 @@ function TravelTime() {
             hours
           </p>
 
-          <p>
-            Trip Feasibility:
-            {" "}
-            {tripFeasible
-              ? "Feasible ✅"
-              : "Less Feasible ⚠️"}
-          </p>
+
         </>
       )}
     </>
