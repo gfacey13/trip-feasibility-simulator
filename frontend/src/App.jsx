@@ -1,6 +1,7 @@
 import { useState} from 'react'
 import './App.css'
 import TravelTime from "./TravelTime";
+import TripInputForm from "./TripInputForm";
 
 
 function App() {
@@ -39,6 +40,9 @@ function App() {
   return (
     <main>
       <h1>Trip Feasibility Simulator</h1>
+
+      <TripInputForm />
+      
       <p>Enter your trip details to estimate transportation and lodging costs.</p>
 
       <label htmlFor="travelers">Number of Travelers</label> 
