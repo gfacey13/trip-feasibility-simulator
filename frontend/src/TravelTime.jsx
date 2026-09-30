@@ -1,19 +1,18 @@
 import { useState } from "react";
 
-function TravelTime() {
+function TravelTime( { transportation } ) {
   const [distance, setDistance] = useState("");
-  const [transportMethod, setTransportMethod] = useState("");
 
   const speeds = {
-    driving: 60,
+    car: 60,
     bus: 45,
     train: 80,
-    flying: 500,
+    plane: 500,
   };
 
   const travelTime =
-    distance && transportMethod
-      ? (Number(distance) / speeds[transportMethod]).toFixed(1)
+    distance && transportation
+      ? (Number(distance) / speeds[transportation]).toFixed(1)
       : null;
 
 
@@ -36,30 +35,10 @@ function TravelTime() {
         }
       />
 
-      <label htmlFor="transportMethod">
-        Transportation Method
-      </label>
 
-      <select
-        id="transportMethod"
-        value={transportMethod}
-        onChange={(event) =>
-          setTransportMethod(event.target.value)
-        }
-      >
-        <option value="">
-          Select Transportation Method
-        </option>
-
-        <option value="driving">Driving</option>
-        <option value="bus">Bus</option>
-        <option value="train">Train</option>
-        <option value="flying">Flying</option>
-      </select>
-
-      {distance && !transportMethod && (
+      {distance && !transportation && (
         <p className="error-message">
-          Please select a transportation method.
+              Please select a transportation method in Trip Input Details.
         </p>
       )}
 
