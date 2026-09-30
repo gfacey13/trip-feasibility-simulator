@@ -1,33 +1,43 @@
 import { useState} from 'react'
 import './App.css'
 import TripInputForm from "./TripInputForm";
-
+import TravelTime from "./TravelTime";
 
 function App() {
-  const [travelers, setTravelers] = useState("");
+
   const [transportationCost, setTransportationCost] = useState("");
   const [nights, setNights] = useState("");
   const [lodgingCost, setLodgingCost] = useState("");
 
+  const [tripForm, setTripForm] = useState({
+  origin: "",
+  destination: "",
+  startDate: "",
+  endDate: "",
+  budget: "",
+  travelers: "",
+  transportation: "",
+});
+
   const hasInvalidInput = 
-    travelers === "" || 
+    tripForm.travelers === "" || 
     transportationCost === "" || 
     nights === "" || 
     lodgingCost === "" || 
-    Number(travelers) < 1 || 
+    Number(tripForm.travelers) < 1 || 
     Number(nights) < 1 || 
     Number(transportationCost) < 0 || 
     Number(lodgingCost) < 0;   
 
   const allFieldsFilled =
-    travelers !== "" &&
+    tripForm.travelers !== "" &&
     transportationCost !== "" &&
     nights !== "" &&
     lodgingCost !== ""
 
   const transportationTotal = hasInvalidInput
     ? 0
-    : Number(travelers) * Number(transportationCost);
+    : Number(tripForm.travelers) * Number(transportationCost);
 
   const lodgingTotal = hasInvalidInput
     ? 0
@@ -40,19 +50,10 @@ function App() {
     <main>
       <h1>Trip Feasibility Simulator</h1>
 
-      <TripInputForm />
+      <TripInputForm onFormChange={setTripForm} />
       
       <p>Enter your trip details to estimate transportation and lodging costs.</p>
 
-      <label htmlFor="travelers">Number of Travelers</label> 
-      <input
-        id="travelers"
-        type="number"
-        min="1"
-        placeholder="Enter number of travelers"
-        value={travelers}
-        onChange={(event) => setTravelers(event.target.value)}
-      />
       <label htmlFor="transportationCost">Transportation Cost Per Traveler</label>
       <input
         id="transportationCost"
@@ -93,6 +94,9 @@ function App() {
           <p>Total Estimated Cost: ${estimatedTotal}</p>
         </>
       )}
+
+      <TravelTime transportation={tripForm.transportation} />
+
     </main>
   )
 }

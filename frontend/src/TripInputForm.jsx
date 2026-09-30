@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-function TripInputForm() {
+function TripInputForm({ onFormChange }) {
   const [form, setForm] = useState({
     origin: "",
     destination: "",
@@ -12,7 +12,16 @@ function TripInputForm() {
   });
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.id]: e.target.value });
+    const updatedForm = {
+      ...form,
+      [e.target.id]: e.target.value,
+    };
+
+    setForm(updatedForm);
+
+    if (onFormChange) {
+      onFormChange(updatedForm);
+    }
   };
 
   const handleSubmit = () => {
