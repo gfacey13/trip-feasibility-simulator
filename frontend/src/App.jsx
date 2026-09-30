@@ -1,5 +1,6 @@
 import { useState} from 'react'
 import './App.css'
+import TravelTime from "./TravelTime";
 
 
 function App() {
@@ -89,6 +90,9 @@ function App() {
           <p>Total Estimated Cost: ${estimatedTotal}</p>
         </>
       )}
+
+    <TravelTime />
+    
     </main>
   )
 }
