@@ -1,6 +1,7 @@
 import { useState} from 'react'
 import './App.css'
 import TripInputForm from "./TripInputForm";
+import ScenarioComparison from "./ScenarioComparison";
 
 
 function App() {
@@ -93,6 +94,7 @@ function App() {
           <p>Total Estimated Cost: ${estimatedTotal}</p>
         </>
       )}
+      <ScenarioComparison />
     </main>
   )
 }
