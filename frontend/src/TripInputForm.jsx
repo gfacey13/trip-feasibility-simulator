@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-function TripInputForm() {
+function TripInputForm({ onFormChange }) {
   const [form, setForm] = useState({
     origin: "",
     destination: "",
@@ -12,7 +12,16 @@ function TripInputForm() {
   });
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.id]: e.target.value });
+    const updatedForm = {
+      ...form,
+      [e.target.id]: e.target.value,
+    };
+
+    setForm(updatedForm);
+
+    if (onFormChange) {
+      onFormChange(updatedForm);
+    }
   };
 
   const handleSubmit = () => {
@@ -39,37 +48,52 @@ function TripInputForm() {
   };
 
   return (
-    <div>
+    <div className="trip-input-form">
       <h2>Trip Input Details</h2>
+      <div className="form-group">
+        <label>Origin:</label>
+        <input id="origin" value={form.origin} onChange={handleChange} />
+      </div>
 
-      <label>Origin:</label>
-      <input id="origin" value={form.origin} onChange={handleChange} />
+      <div className="form-group">
+        <label>Destination:</label>
+        <input id="destination" value={form.destination} onChange={handleChange} />
+      </div>
 
-      <label>Destination:</label>
-      <input id="destination" value={form.destination} onChange={handleChange} />
+      <div className="form-group">
+        <label>Start Date:</label>
+        <input type="date" id="startDate" value={form.startDate} onChange={handleChange} />
+      </div>
 
-      <label>Start Date:</label>
-      <input type="date" id="startDate" value={form.startDate} onChange={handleChange} />
+      <div className="form-group">
+        <label>End Date:</label>
+        <input type="date" id="endDate" value={form.endDate} onChange={handleChange} />
+      </div>
 
-      <label>End Date:</label>
-      <input type="date" id="endDate" value={form.endDate} onChange={handleChange} />
+      <div className="form-group">
+        <label>Budget ($):</label>
+        <input type="number" id="budget" value={form.budget} onChange={handleChange} />
+      </div>
 
-      <label>Budget ($):</label>
-      <input type="number" id="budget" value={form.budget} onChange={handleChange} />
+      <div className="form-group">
+        <label>Number of Travelers:</label>
+        <input type="number" id="travelers" value={form.travelers} onChange={handleChange} />
+      </div>
 
-      <label>Number of Travelers:</label>
-      <input type="number" id="travelers" value={form.travelers} onChange={handleChange} />
+      <div className="form-group">
+        <label>Transportation:</label>
+        <select id="transportation" value={form.transportation} onChange={handleChange}>
+          <option value="">Select one</option>
+          <option value="car">Car</option>
+          <option value="bus">Bus</option>
+          <option value="train">Train</option>
+          <option value="plane">Plane</option>
+        </select>
+      </div>
 
-      <label>Transportation:</label>
-      <select id="transportation" value={form.transportation} onChange={handleChange}>
-        <option value="">Select one</option>
-        <option value="car">Car</option>
-        <option value="bus">Bus</option>
-        <option value="train">Train</option>
-        <option value="plane">Plane</option>
-      </select>
-
-      <button onClick={handleSubmit}>Submit</button>
+      <div className="form-group">
+        <button onClick={handleSubmit}>Submit</button>
+      </div>
     </div>
   );
 }

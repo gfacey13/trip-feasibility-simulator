@@ -1,34 +1,62 @@
-import { useState} from 'react'
+import { useState } from 'react'
 import './App.css'
+import TravelTime from "./TravelTime";
 import TripInputForm from "./TripInputForm";
 import ScenarioComparison from "./ScenarioComparison";
 
 
 function App() {
-  const [travelers, setTravelers] = useState("");
+
   const [transportationCost, setTransportationCost] = useState("");
-  const [nights, setNights] = useState("");
   const [lodgingCost, setLodgingCost] = useState("");
 
-  const hasInvalidInput = 
-    travelers === "" || 
-    transportationCost === "" || 
-    nights === "" || 
-    lodgingCost === "" || 
-    Number(travelers) < 1 || 
+  const [tripForm, setTripForm] = useState({
+  origin: "",
+  destination: "",
+  startDate: "",
+  endDate: "",
+  budget: "",
+  travelers: "",
+  transportation: "",
+});
+
+const invalidDates =
+  tripForm.startDate &&
+  tripForm.endDate &&
+  new Date(`${tripForm.endDate}T00:00:00`) <=
+    new Date(`${tripForm.startDate}T00:00:00`);
+
+const nights =
+  tripForm.startDate &&
+  tripForm.endDate &&
+  !invalidDates
+    ? Math.round(
+        (new Date(`${tripForm.endDate}T00:00:00`) -
+          new Date(`${tripForm.startDate}T00:00:00`)) /
+          (1000 * 60 * 60 * 24)
+      )
+    : 0;
+
+  const hasInvalidInput =
+    tripForm.travelers === "" ||
+    transportationCost === "" ||
+    nights === 0 ||
+    lodgingCost === "" ||
+    invalidDates ||
+    Number(tripForm.travelers) < 1 ||
     Number(nights) < 1 || 
-    Number(transportationCost) < 0 || 
-    Number(lodgingCost) < 0;   
+    Number(transportationCost) < 0 ||
+    Number(lodgingCost) < 0;
 
   const allFieldsFilled =
-    travelers !== "" &&
+    tripForm.travelers !== "" &&
     transportationCost !== "" &&
-    nights !== "" &&
+    nights > 0 &&
     lodgingCost !== ""
 
   const transportationTotal = hasInvalidInput
     ? 0
-    : Number(travelers) * Number(transportationCost);
+    : Number(tripForm.travelers) * Number(transportationCost);
 
   const lodgingTotal = hasInvalidInput
     ? 0
@@ -41,47 +69,47 @@ function App() {
     <main>
       <h1>Trip Feasibility Simulator</h1>
 
-      <TripInputForm />
+      <TripInputForm onFormChange={setTripForm} />
       
       <p>Enter your trip details to estimate transportation and lodging costs.</p>
 
-      <label htmlFor="travelers">Number of Travelers</label> 
-      <input
-        id="travelers"
-        type="number"
-        min="1"
-        placeholder="Enter number of travelers"
-        value={travelers}
-        onChange={(event) => setTravelers(event.target.value)}
-      />
-      <label htmlFor="transportationCost">Transportation Cost Per Traveler</label>
-      <input
-        id="transportationCost"
-        type="number"
-        min="0"
-        placeholder="Enter transportation cost"
-        value={transportationCost}
-        onChange={(event) => setTransportationCost(event.target.value)}
-      />
-      <label htmlFor="nights">Number of Nights</label>
-      <input
-        id="nights"
-        type="number"
-        min="1"
-        placeholder="Enter number of nights"
-        value={nights}
-        onChange={(event) => setNights(event.target.value)}
-      />
-      <label htmlFor="lodgingCost">Lodging Cost Per Night</label>
-      <input
-        id="lodgingCost"
-        type="number"
-        min="0"
-        placeholder="Enter lodging cost per night"
-        value={lodgingCost}
-        onChange={(event) => setLodgingCost(event.target.value)}
-      />
-      {allFieldsFilled && hasInvalidInput && (
+      <div className="cost-inputs">
+        <div className="form-group">
+          <label htmlFor="transportationCost">
+            Transportation Cost Per Traveler
+          </label>
+          <input
+            id="transportationCost"
+            type="number"
+            min="0"
+            placeholder="Enter transportation cost"
+            value={transportationCost}
+            onChange={(event) => setTransportationCost(event.target.value)}
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="nights">Number of Nights</label>
+          <p className="calculated-value">
+            {nights || "Calculated from dates"}
+          </p>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="lodgingCost">
+            Lodging Cost Per Night
+          </label>
+          <input
+            id="lodgingCost"
+            type="number"
+            min="0"
+            placeholder="Enter lodging cost per night"
+            value={lodgingCost}
+            onChange={(event) => setLodgingCost(event.target.value)}
+          />
+        </div>
+      </div>
+      {allFieldsFilled && hasInvalidInput && !invalidDates && (
         <p className ="error-message">
           Please enter valid trip cost information.</p>
       )}
@@ -94,6 +122,14 @@ function App() {
           <p>Total Estimated Cost: ${estimatedTotal}</p>
         </>
       )}
+      {invalidDates && (
+        <p className="error-message">
+          End date must be after start date.
+        </p>
+      )}
+
+      <TravelTime transportation={tripForm.transportation} />
+
       <ScenarioComparison />
     </main>
   )
