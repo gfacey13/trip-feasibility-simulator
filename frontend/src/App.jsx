@@ -2,13 +2,14 @@ import { useState } from 'react'
 import './App.css'
 import TravelTime from "./TravelTime";
 import TripInputForm from "./TripInputForm";
+import FeasibilityAnalysis from "./FeasibilityAnalysis"
 
 
 function App() {
 
   const [transportationCost, setTransportationCost] = useState("");
   const [lodgingCost, setLodgingCost] = useState("");
-
+  const [travelTime, setTravelTime] = useState("");
   const [tripForm, setTripForm] = useState({
   origin: "",
   destination: "",
@@ -107,29 +108,51 @@ const nights =
             onChange={(event) => setLodgingCost(event.target.value)}
           />
         </div>
+
+        <div className="form-group">
+          <label htmlFor="travelTime">
+            Travel Time (Hours)
+          </label>
+          <input
+            id="travelTime"
+            type="number"
+            min="0"
+            placeholder="Enter travel time"
+            value={travelTime}
+            onChange={(event) => setTravelTime(event.target.value)}
+          />
+        </div>
       </div>
       {allFieldsFilled && hasInvalidInput && !invalidDates && (
         <p className ="error-message">
           Please enter valid trip cost information.</p>
       )}
       
-      {!hasInvalidInput && ( 
-        <>
-          <h2>Estimated Cost</h2>
-          <p>Transportation: ${transportationTotal}</p>
-          <p>Lodging: ${lodgingTotal}</p>
-          <p>Total Estimated Cost: ${estimatedTotal}</p>
-        </>
-      )}
-
-      {invalidDates && (
-        <p className="error-message">
-          End date must be after start date.
-        </p>
-      )}
-
-      <TravelTime transportation={tripForm.transportation} />
-
+      
+      {!hasInvalidInput && (
+<>
+<h2>Estimated Cost</h2>
+<p>Transportation: ${transportationTotal}</p>
+<p>Lodging: ${lodgingTotal}</p>
+<p>Total Estimated Cost: ${estimatedTotal}</p>
+</>
+)}
+ 
+{invalidDates && (
+<p className="error-message">
+End date must be after start date.
+</p>
+)}
+ 
+<TravelTime transportation={tripForm.transportation} />
+ 
+{travelTime && !hasInvalidInput && (
+<FeasibilityAnalysis
+estimatedTotal={estimatedTotal}
+travelTime={Number(travelTime)}
+budget={Number(tripForm.budget)}
+/>
+)}
     </main>
   )
 }
