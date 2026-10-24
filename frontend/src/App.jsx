@@ -3,7 +3,7 @@ import './App.css'
 import TravelTime from "./TravelTime";
 import TripInputForm from "./TripInputForm";
 import ScenarioComparison from "./ScenarioComparison";
-
+import FeasibilityAnalysis from "./FeasibilityAnalysis";
 
 function App() {
 
@@ -180,12 +180,11 @@ const estimatedTravelTime =
           <h2>Trip Feasibility Results</h2>
           <p>Transportation: ${transportationTotal}</p>
           <p>Lodging: ${lodgingTotal}</p>
-          <p>Total Estimated Cost: ${estimatedTotal}</p>
-          <p>Estimated Travel Time: {estimatedTravelTime} hours</p>
-          <p>
-            <strong>Feasible:</strong>{" "}
-            {estimatedTotal <= Number(tripForm.budget) ? "Yes" : "No"}
-          </p>
+          <FeasibilityAnalysis
+            estimatedTotal={estimatedTotal}
+            travelTime={Number(estimatedTravelTime)}
+            budget={Number(tripForm.budget)}
+          />
         </>
       )}
 
