@@ -2,12 +2,15 @@ import { useState } from 'react'
 import './App.css'
 import TravelTime from "./TravelTime";
 import TripInputForm from "./TripInputForm";
-
+import ScenarioComparison from "./ScenarioComparison";
+import FeasibilityAnalysis from "./FeasibilityAnalysis";
 
 function App() {
 
   const [transportationCost, setTransportationCost] = useState("");
   const [lodgingCost, setLodgingCost] = useState("");
+  const [showResults, setShowResults] = useState(false);
+  const [distance, setDistance] = useState("");
 
   const [tripForm, setTripForm] = useState({
   origin: "",
@@ -37,7 +40,16 @@ const nights =
     : 0;
 
   const hasInvalidInput =
+    distance === "" ||
+    Number(distance) <= 0 ||
     tripForm.travelers === "" ||
+    tripForm.origin.trim() === "" ||
+    tripForm.destination.trim() === "" ||
+    tripForm.startDate === "" ||
+    tripForm.endDate === "" ||
+    tripForm.budget === "" ||
+    Number(tripForm.budget) <= 0 ||
+    tripForm.transportation === "" ||
     transportationCost === "" ||
     nights === 0 ||
     lodgingCost === "" ||
@@ -63,12 +75,29 @@ const nights =
 
   const estimatedTotal = transportationTotal + lodgingTotal;
 
+  const speeds = {
+  car: 60,
+  bus: 45,
+  train: 80,
+  plane: 500,
+};
+
+const estimatedTravelTime =
+  Number(distance) > 0 && speeds[tripForm.transportation]
+    ? (Number(distance) / speeds[tripForm.transportation]).toFixed(1)
+    : null;
+
 
   return (
     <main>
       <h1>Trip Feasibility Simulator</h1>
 
-      <TripInputForm onFormChange={setTripForm} />
+      <TripInputForm 
+        onFormChange={(updatedForm) => {
+          setTripForm(updatedForm);
+          setShowResults(false);
+        }}
+      />
       
       <p>Enter your trip details to estimate transportation and lodging costs.</p>
 
@@ -83,8 +112,12 @@ const nights =
             min="0"
             placeholder="Enter transportation cost"
             value={transportationCost}
-            onChange={(event) => setTransportationCost(event.target.value)}
+            onChange={(event) => {
+              setTransportationCost(event.target.value);
+              setShowResults(false);
+            }}
           />
+          
         </div>
 
         <div className="form-group">
@@ -104,31 +137,64 @@ const nights =
             min="0"
             placeholder="Enter lodging cost per night"
             value={lodgingCost}
-            onChange={(event) => setLodgingCost(event.target.value)}
+            onChange={(event) => {
+              setLodgingCost(event.target.value);
+              setShowResults(false);
+            }}
           />
         </div>
       </div>
-      {allFieldsFilled && hasInvalidInput && !invalidDates && (
+
+      {showResults && hasInvalidInput && !invalidDates && (
         <p className ="error-message">
-          Please enter valid trip cost information.</p>
+            Please complete all required trip details and enter valid costs.
+        </p>
       )}
       
-      {!hasInvalidInput && ( 
-        <>
-          <h2>Estimated Cost</h2>
-          <p>Transportation: ${transportationTotal}</p>
-          <p>Lodging: ${lodgingTotal}</p>
-          <p>Total Estimated Cost: ${estimatedTotal}</p>
-        </>
-      )}
-
+  
       {invalidDates && (
         <p className="error-message">
           End date must be after start date.
         </p>
       )}
 
-      <TravelTime transportation={tripForm.transportation} />
+      <TravelTime 
+        transportation={tripForm.transportation} 
+        onDistanceChange={(newDistance) => {
+          setDistance(newDistance);
+          setShowResults(false);
+        }}
+        showResults={showResults}
+      />
+      <div className="calculate-button-container">
+        <button
+          type="button"
+          onClick={() => setShowResults(true)}
+        >
+          Calculate Feasibility
+        </button>
+      </div>
+
+      {showResults && !hasInvalidInput && (
+        <>
+          <h2>Trip Feasibility Results</h2>
+          <p>Transportation: ${transportationTotal}</p>
+          <p>Lodging: ${lodgingTotal}</p>
+          <FeasibilityAnalysis
+            estimatedTotal={estimatedTotal}
+            travelTime={Number(estimatedTravelTime)}
+            budget={Number(tripForm.budget)}
+          />
+        </>
+      )}
+
+      <ScenarioComparison
+        tripForm={tripForm}
+        estimatedTotal={estimatedTotal}
+        estimatedTravelTime={estimatedTravelTime}
+        showResults={showResults}
+        hasInvalidInput={hasInvalidInput}
+      />
 
     </main>
   )

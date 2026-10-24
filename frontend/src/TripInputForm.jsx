@@ -91,9 +91,7 @@ function TripInputForm({ onFormChange }) {
         </select>
       </div>
 
-      <div className="form-group">
-        <button onClick={handleSubmit}>Submit</button>
-      </div>
+
     </div>
   );
 }
