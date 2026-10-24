@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-function TravelTime( { transportation } ) {
+function TravelTime({ transportation, onDistanceChange, showResults }) {
   const [distance, setDistance] = useState("");
 
   const speeds = {
@@ -30,9 +30,11 @@ function TravelTime( { transportation } ) {
         min="1"
         placeholder="Enter trip distance"
         value={distance}
-        onChange={(event) =>
-          setDistance(event.target.value)
-        }
+        onChange={(event) =>{
+          const newDistance = event.target.value;
+          setDistance(newDistance);
+          onDistanceChange?.(newDistance);
+        }}
       />
 
 
@@ -42,19 +44,6 @@ function TravelTime( { transportation } ) {
         </p>
       )}
 
-      {travelTime && (
-        <>
-          <p>
-            Estimated Travel Time:
-            {" "}
-            {travelTime}
-            {" "}
-            hours
-          </p>
-
-
-        </>
-      )}
     </>
   );
 }

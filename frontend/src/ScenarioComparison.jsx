@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-function ScenarioComparison() {
+function ScenarioComparison({
+  tripForm,
+  estimatedTotal,
+  estimatedTravelTime,
+  showResults,
+  hasInvalidInput,
+}) {
   const [scenarios, setScenarios] = useState([
     {
       id: 1,
@@ -16,7 +22,33 @@ function ScenarioComparison() {
   ]);
 
   const [preferredScenario, setPreferredScenario] = useState(null);
-  const [savedScenario, setSavedScenario] = useState(null);
+  const [savedScenario, setSavedScenario] = useState(() => {
+    const storedScenario = localStorage.getItem("savedPreferredScenario");
+
+    return storedScenario ? JSON.parse(storedScenario) : null;
+  });
+
+useEffect(() => {
+  if (!showResults || hasInvalidInput) return;
+
+  setScenarios((currentScenarios) =>
+    currentScenarios.map((scenario) =>
+      scenario.id === 1
+        ? {
+            ...scenario,
+            origin: tripForm.origin,
+            destination: tripForm.destination,
+            startDate: tripForm.startDate,
+            endDate: tripForm.endDate,
+            transportation: tripForm.transportation,
+            cost: String(estimatedTotal),
+            travelTime: String(estimatedTravelTime),
+            budget: tripForm.budget,
+          }
+        : scenario
+    )
+  );
+}, [showResults, hasInvalidInput, tripForm, estimatedTotal, estimatedTravelTime]);
 
   const updateScenario = (id, field, value) => {
     const updatedScenarios = scenarios.map((scenario) =>
@@ -41,8 +73,27 @@ function ScenarioComparison() {
     setScenarios([...scenarios, newScenario]);
   };
 
+  const removeScenario = (id) => {
+    if (scenarios.length === 1) {
+      return;
+    }
+
+    setScenarios((currentScenarios) =>
+      currentScenarios.filter((scenario) => scenario.id !== id)
+    );
+
+    if (preferredScenario === id) {
+      setPreferredScenario(null);
+    }
+  };
+
   const selectPreferred = (id) => {
     setPreferredScenario(id);
+    setSavedScenario(null);
+  };
+
+  const deleteSavedScenario = () => {
+    localStorage.removeItem("savedPreferredScenario");
     setSavedScenario(null);
   };
 
@@ -53,6 +104,15 @@ function ScenarioComparison() {
 
     const selectedScenario = scenarios.find(
       (scenario) => scenario.id === preferredScenario
+    );
+
+    if (!selectedScenario) {
+      return;
+    }
+
+    localStorage.setItem(
+      "savedPreferredScenario",
+      JSON.stringify(selectedScenario)
     );
 
     setSavedScenario(selectedScenario);
@@ -192,10 +252,10 @@ function ScenarioComparison() {
                 }
               >
                 <option value="">Select one</option>
-                <option value="Car">Car</option>
-                <option value="Bus">Bus</option>
-                <option value="Train">Train</option>
-                <option value="Plane">Plane</option>
+                <option value="car">Car</option>
+                <option value="bus">Bus</option>
+                <option value="train">Train</option>
+                <option value="plane">Plane</option>
               </select>
             </div>
 
@@ -289,6 +349,13 @@ function ScenarioComparison() {
             >
               Duplicate Scenario
             </button>
+            <button
+              onClick={() => removeScenario(scenario.id)}
+              disabled={scenarios.length === 1}
+              style={{ marginLeft: "10px" }}
+            >
+              Remove Scenario
+            </button>
 
             <button
               onClick={() => selectPreferred(scenario.id)}
@@ -323,10 +390,22 @@ function ScenarioComparison() {
       )}
 
       {savedScenario && (
-        <p>
-          Scenario has been saved as your preferred scenario.
-        </p>
+        <div className="saved-scenario">
+          <h3>Saved Preferred Scenario</h3>
+          <p>
+            {savedScenario.origin} to {savedScenario.destination}
+          </p>
+          <p>Estimated Cost: ${savedScenario.cost}</p>
+          <p>Travel Time: {savedScenario.travelTime} hours</p>
+          <button
+            type="button"
+            onClick={deleteSavedScenario}
+          >
+            Delete Saved Scenario
+          </button>
+        </div>
       )}
+
     </div>
   );
 }
