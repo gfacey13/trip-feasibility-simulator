@@ -6,6 +6,8 @@ function ScenarioComparison({
   estimatedTravelTime,
   showResults,
   hasInvalidInput,
+  savedScenario,
+  onSavedScenarioChange,
 }) {
   const [scenarios, setScenarios] = useState([
     {
@@ -22,11 +24,8 @@ function ScenarioComparison({
   ]);
 
   const [preferredScenario, setPreferredScenario] = useState(null);
-  const [savedScenario, setSavedScenario] = useState(() => {
-    const storedScenario = localStorage.getItem("savedPreferredScenario");
 
-    return storedScenario ? JSON.parse(storedScenario) : null;
-  });
+  const [saveError, setSaveError] = useState("");
 
 useEffect(() => {
   if (!showResults || hasInvalidInput) return;
@@ -61,7 +60,6 @@ useEffect(() => {
     );
 
     setScenarios(updatedScenarios);
-    setSavedScenario(null);
   };
 
   const duplicateScenario = (scenario) => {
@@ -89,34 +87,82 @@ useEffect(() => {
 
   const selectPreferred = (id) => {
     setPreferredScenario(id);
-    setSavedScenario(null);
   };
 
   const deleteSavedScenario = () => {
+  try {
     localStorage.removeItem("savedPreferredScenario");
-    setSavedScenario(null);
-  };
+    onSavedScenarioChange(null);
+    setSaveError("");
+  } catch {
+    setSaveError("The saved trip could not be deleted. Please try again.");
+  }
+};
 
   const savePreferredScenario = () => {
-    if (preferredScenario === null) {
-      return;
-    }
+  const selectedScenario = scenarios.find(
+    (scenario) => scenario.id === preferredScenario
+  );
 
-    const selectedScenario = scenarios.find(
-      (scenario) => scenario.id === preferredScenario
+  if (!selectedScenario) {
+    setSaveError("Select a preferred scenario first.");
+    return;
+  }
+
+  const validNumber = (value, minimum) =>
+    value != null &&
+    String(value).trim() !== "" &&
+    Number.isFinite(Number(value)) &&
+    Number(value) >= minimum;
+
+  const start = Date.parse(selectedScenario.startDate);
+  const end = Date.parse(selectedScenario.endDate);
+
+  const validTrip =
+    selectedScenario.origin.trim() !== "" &&
+    selectedScenario.destination.trim() !== "" &&
+    Number.isFinite(start) &&
+    Number.isFinite(end) &&
+    end > start &&
+    ["car", "bus", "train", "plane"].includes(
+      selectedScenario.transportation
+    ) &&
+    validNumber(selectedScenario.cost, 0) &&
+    validNumber(selectedScenario.budget, 0) &&
+    Number(selectedScenario.budget) > 0 &&
+    validNumber(selectedScenario.travelTime, 0);
+
+  if (!validTrip) {
+    setSaveError(
+      "Complete the selected scenario with valid locations, dates, " +
+      "transportation, cost, budget, and travel time before saving."
     );
+    return;
+  }
 
-    if (!selectedScenario) {
-      return;
-    }
+  const tripToSave = {
+    ...selectedScenario,
+    budgetResult:
+      Number(selectedScenario.cost) <= Number(selectedScenario.budget)
+        ? "Within budget"
+        : "Over budget",
+    savedAt: new Date().toISOString(),
+  };
 
+  try {
     localStorage.setItem(
       "savedPreferredScenario",
-      JSON.stringify(selectedScenario)
+      JSON.stringify(tripToSave)
     );
 
-    setSavedScenario(selectedScenario);
-  };
+    onSavedScenarioChange(tripToSave);
+    setSaveError("");
+  } catch {
+    setSaveError(
+      "The trip could not be saved on this device. Please try again."
+    );
+  }
+};
 
   const getFeasibility = (scenario) => {
     if (scenario.cost === "" || scenario.budget === "") {
@@ -131,6 +177,12 @@ useEffect(() => {
   return (
     <div>
       <h2>Scenario Comparison</h2>
+
+      {saveError && (
+  <p className="error-message" role="alert">
+    {saveError}
+  </p>
+)}
 
       <div
         className="scenario-container"
