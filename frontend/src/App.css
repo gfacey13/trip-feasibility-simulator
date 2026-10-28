@@ -11,6 +11,7 @@
   &:hover {
     border-color: var(--accent-border);
   }
+
   &:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
@@ -42,8 +43,7 @@
     z-index: 1;
     top: 34px;
     height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
+    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg) scale(1.4);
   }
 
   .vite {
@@ -51,8 +51,7 @@
     top: 107px;
     height: 26px;
     width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
+    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg) scale(0.8);
   }
 }
 
@@ -75,9 +74,10 @@
   border-top: 1px solid var(--border);
   text-align: left;
 
-  & > div {
+  &>div {
     flex: 1 1 0;
     padding: 32px;
+
     @media (max-width: 1024px) {
       padding: 24px 20px;
     }
@@ -130,6 +130,7 @@
     &:hover {
       box-shadow: var(--shadow);
     }
+
     .button-icon {
       height: 18px;
       width: 18px;
@@ -156,6 +157,7 @@
 #spacer {
   height: 88px;
   border-top: 1px solid var(--border);
+
   @media (max-width: 1024px) {
     height: 48px;
   }
@@ -177,6 +179,7 @@
     left: 0;
     border-left-color: var(--border);
   }
+
   &::after {
     right: 0;
     border-right-color: var(--border);
@@ -185,16 +188,16 @@
 
 }
 
-  .error-message {
-    color: red;
-    font-weight: bold;
-    background-color: #ffe5e5;
-    border: 2px solid red;
-    padding: 15px;
-    margin-top: 6px;
-  }
+.error-message {
+  color: red;
+  font-weight: bold;
+  background-color: #ffe5e5;
+  border: 2px solid red;
+  padding: 15px;
+  margin-top: 6px;
+}
 
-  .trip-input-form {
+.trip-input-form {
   width: min(100%, 1000px);
   margin: 0 auto;
   display: grid;
@@ -213,7 +216,7 @@
   gap: 6px;
 }
 
-.trip-input-form > .form-group:last-child {
+.trip-input-form>.form-group:last-child {
   grid-column: 1;
 }
 
@@ -283,4 +286,42 @@
   display: flex;
   justify-content: center;
   margin: 20px 0;
+}
+
+.user-dashboard {
+  width: min(100%, 1000px);
+  margin: 32px auto;
+  text-align: left;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 20px;
+}
+
+.dashboard-card,
+.dashboard-empty {
+  padding: 20px;
+  border: 1px solid #888;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-card h3 {
+  margin-top: 0;
+}
+
+.dashboard-card p {
+  margin: 12px 0;
+  line-height: 1.5;
+}
+.dashboard-summary {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #888;
+}
+
+.dashboard-summary h4 {
+  margin-top: 0;
 }
