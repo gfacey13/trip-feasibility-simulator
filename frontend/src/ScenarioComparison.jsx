@@ -339,7 +339,7 @@ useEffect(() => {
               </p>
 
               <p>
-                <strong>Feasible:</strong>{" "}
+                <strong>Within Budget:</strong>{" "}
                 {getFeasibility(scenario)}
               </p>
             </div>
