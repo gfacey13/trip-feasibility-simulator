@@ -4,6 +4,8 @@ import TravelTime from "./TravelTime";
 import TripInputForm from "./TripInputForm";
 import ScenarioComparison from "./ScenarioComparison";
 import FeasibilityAnalysis from "./FeasibilityAnalysis";
+import TripSummary from "./TripSummary";
+
 
 function App() {
 
@@ -187,7 +189,15 @@ const estimatedTravelTime =
           />
         </>
       )}
-
+      {showResults && !hasInvalidInput && (
+      <TripSummary
+       tripForm={tripForm}
+       transportationTotal={transportationTotal}
+       lodgingTotal={lodgingTotal}
+       estimatedTotal={estimatedTotal}
+       estimatedTravelTime={estimatedTravelTime}
+       />
+      )}
       <ScenarioComparison
         tripForm={tripForm}
         estimatedTotal={estimatedTotal}
