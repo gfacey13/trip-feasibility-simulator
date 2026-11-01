@@ -284,3 +284,98 @@
   justify-content: center;
   margin: 20px 0;
 }
+
+/* Center the forecast table and separate its cells. */
+.weather-table {
+  margin: 1rem auto;
+  border-collapse: collapse;
+}
+
+.weather-table th,
+.weather-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #555;
+}
+/* Allow the wider forecast table to scroll on phones. */
+.weather-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.weather-risk {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid currentColor;
+  border-radius: 0.4rem;
+}
+/* Text labels accompany colors so warnings are not color-dependent. */
+.weather-risk--low { color: #238636; }
+.weather-risk--moderate { color: #9a6700; }
+.weather-risk--high { color: #cf222e; }
+.weather-risk--unknown { color: inherit; }
+.weather-risk-reasons {
+  padding-left: 1.2rem;
+  min-width: 15rem;
+  margin: 0.5rem 0;
+}
+@media (prefers-color-scheme: dark) {
+  .weather-risk--low { color: #7ee787; }
+  .weather-risk--moderate { color: #f2cc60; }
+  .weather-risk--high { color: #ff7b72; }
+}
+/* Let the page shrink with the viewport instead of its widest child. */
+main {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 clamp(12px, 3vw, 32px) 24px;
+}
+.form-group {
+  min-width: 0;
+}
+.trip-input-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.cost-inputs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Keep scrolling inside the forecast, rather than widening the page. */
+.weather-table-scroll {
+  width: 100%;
+  min-width: 0;
+}
+.weather-table {
+  width: 100%;
+}
+.weather-table th:first-child,
+.weather-table td:first-child {
+  white-space: nowrap;
+}
+.weather-table td {
+  vertical-align: top;
+}
+.weather-risk-reasons {
+  min-width: 12rem;
+  max-width: 24rem;
+}
+@media (max-width: 700px) {
+  .trip-input-form,
+  .cost-inputs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .weather-table th,
+  .weather-table td {
+    padding: 0.65rem;
+  }
+}
+/* Keep the new constraint input and result explanations easy to scan. */
+.travel-limit {
+  max-width: 28rem;
+  margin: 1rem auto;
+}
+.feasibility-reasons {
+  max-width: 42rem;
+  margin: 0.75rem auto 1rem;
+  text-align: left;
+}

@@ -4,6 +4,7 @@ import TravelTime from "./TravelTime";
 import TripInputForm from "./TripInputForm";
 import ScenarioComparison from "./ScenarioComparison";
 import FeasibilityAnalysis from "./FeasibilityAnalysis";
+import WeatherDelayChecker from "./WeatherDelayChecker";
 
 function App() {
 
@@ -11,6 +12,11 @@ function App() {
   const [lodgingCost, setLodgingCost] = useState("");
   const [showResults, setShowResults] = useState(false);
   const [distance, setDistance] = useState("");
+  // Keep the limit user-defined rather than assuming every trip must be under 8 hours.
+  const [maxTravelTime, setMaxTravelTime] = useState("");
+  // The weather component reports its request state to the main assessment.
+  const [weather, setWeather] = useState(null);
+  const [assessmentId, setAssessmentId] = useState(0);
 
   const [tripForm, setTripForm] = useState({
   origin: "",
@@ -40,6 +46,9 @@ const nights =
     : 0;
 
   const hasInvalidInput =
+    maxTravelTime === "" ||
+    !Number.isFinite(Number(maxTravelTime)) ||
+    Number(maxTravelTime) <= 0 ||
     distance === "" ||
     Number(distance) <= 0 ||
     tripForm.travelers === "" ||
@@ -147,7 +156,7 @@ const estimatedTravelTime =
 
       {showResults && hasInvalidInput && !invalidDates && (
         <p className ="error-message">
-            Please complete all required trip details and enter valid costs.
+            Please complete all required trip details, valid costs, and a positive travel-time limit.
         </p>
       )}
       
@@ -166,10 +175,31 @@ const estimatedTravelTime =
         }}
         showResults={showResults}
       />
+      <div className="travel-limit form-group">
+        <label htmlFor="maxTravelTime">Maximum Travel Time (hours)</label>
+        <input
+          id="maxTravelTime"
+          type="number"
+          min="0.1"
+          step="any"
+          placeholder="Enter your travel-time limit"
+          value={maxTravelTime}
+          onChange={(event) => {
+            setMaxTravelTime(event.target.value);
+            setShowResults(false);
+          }}
+        />
+        <small>Applies to the same journey as the distance entered above.</small>
+      </div>
       <div className="calculate-button-container">
         <button
           type="button"
-          onClick={() => setShowResults(true)}
+          onClick={() => {
+            // Discard any previous forecast before starting a new assessment.
+            setWeather(null);
+            setAssessmentId((current) => current + 1);
+            setShowResults(true);
+          }}
         >
           Calculate Feasibility
         </button>
@@ -180,10 +210,21 @@ const estimatedTravelTime =
           <h2>Trip Feasibility Results</h2>
           <p>Transportation: ${transportationTotal}</p>
           <p>Lodging: ${lodgingTotal}</p>
+          
           <FeasibilityAnalysis
             estimatedTotal={estimatedTotal}
-            travelTime={Number(estimatedTravelTime)}
+            travelTime={Number(distance) / speeds[tripForm.transportation]}
+            maxTravelTime={Number(maxTravelTime)}
+            weather={weather}
             budget={Number(tripForm.budget)}
+          />
+
+          <WeatherDelayChecker
+            key={assessmentId}
+            destination={tripForm.destination}
+            startDate={tripForm.startDate}
+            onForecastChange={setWeather}
+            endDate={tripForm.endDate}
           />
         </>
       )}
