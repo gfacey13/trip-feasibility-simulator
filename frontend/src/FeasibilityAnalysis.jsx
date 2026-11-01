@@ -1,10 +1,10 @@
 import { evaluateFeasibility } from "./services/evaluateFeasibility";
 
 function FeasibilityAnalysis({
-  estimatedTotal, travelTime, budget, maxTravelTime, weather,
+  estimatedTotal, travelTime, budget, maxTravelTime, weather, analysis,
 }) {
   // Recalculate automatically when the forecast arrives or a constraint changes.
-  const result = evaluateFeasibility({
+  const result = analysis ?? evaluateFeasibility({
     estimatedTotal, travelTime, budget, maxTravelTime, weather,
   });
 

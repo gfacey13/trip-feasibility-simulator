@@ -8,23 +8,13 @@ import WeatherDelayChecker from "./WeatherDelayChecker";
 import TripSummary from "./TripSummary";
 
 import UserDashboard from "./UserDashboard";
+import { readSavedTrip } from "./services/savedTripStorage";
+import { evaluateFeasibility } from "./services/evaluateFeasibility";
 
 function App() {
 
-  const [savedScenario, setSavedScenario] = useState(() => {
-    try {
-      const stored = localStorage.getItem("savedPreferredScenario");
-      const parsed = stored ? JSON.parse(stored) : null;
-
-      return parsed &&
-        typeof parsed === "object" &&
-        !Array.isArray(parsed)
-        ? parsed
-        : null;
-    } catch {
-      return null;
-    }
-  });
+  // Read a validated device snapshot; malformed storage must not break the page.
+  const [savedScenario, setSavedScenario] = useState(() => readSavedTrip());
 
   const [transportationCost, setTransportationCost] = useState("");
   const [lodgingCost, setLodgingCost] = useState("");
@@ -86,12 +76,6 @@ function App() {
     Number(transportationCost) < 0 ||
     Number(lodgingCost) < 0;
 
-  const allFieldsFilled =
-    tripForm.travelers !== "" &&
-    transportationCost !== "" &&
-    nights > 0 &&
-    lodgingCost !== ""
-
   const transportationTotal = hasInvalidInput
     ? 0
     : Number(tripForm.travelers) * Number(transportationCost);
@@ -114,6 +98,16 @@ function App() {
       ? (Number(distance) / speeds[tripForm.transportation]).toFixed(1)
       : null;
 
+
+  // Both result displays receive the same assessment, including request state.
+  // Compare the unrounded time to the limit; rounding is for display only.
+  const analysis = evaluateFeasibility({
+    estimatedTotal,
+    budget: Number(tripForm.budget),
+    travelTime: Number(distance) / speeds[tripForm.transportation],
+    maxTravelTime: Number(maxTravelTime),
+    weather,
+  });
 
   return (
     <main>
@@ -235,6 +229,7 @@ function App() {
           <p>Lodging: ${lodgingTotal}</p>
           
           <FeasibilityAnalysis
+            analysis={analysis}
             estimatedTotal={estimatedTotal}
             travelTime={Number(distance) / speeds[tripForm.transportation]}
             maxTravelTime={Number(maxTravelTime)}
@@ -258,9 +253,13 @@ function App() {
        lodgingTotal={lodgingTotal}
        estimatedTotal={estimatedTotal}
        estimatedTravelTime={estimatedTravelTime}
+       analysis={analysis}
+       weather={weather}
+       maxTravelTime={Number(maxTravelTime)}
        />
       )}
       <ScenarioComparison
+        calculationId={assessmentId}
         tripForm={tripForm}
         estimatedTotal={estimatedTotal}
         estimatedTravelTime={estimatedTravelTime}

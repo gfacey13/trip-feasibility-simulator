@@ -40,7 +40,8 @@ function UserDashboard({ savedTrip }) {
       <h2>Your Dashboard</h2>
       <p>
         Saved on this device. Saving another preferred scenario replaces
-        this trip.
+        this trip. The saved result checks budget only; weather and travel-time
+        limits are not saved with this prototype.
       </p>
 
       <div className="dashboard-grid">

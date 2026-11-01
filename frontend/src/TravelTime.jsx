@@ -1,20 +1,7 @@
 import { useState } from "react";
 
-function TravelTime({ transportation, onDistanceChange, showResults }) {
+function TravelTime({ transportation, onDistanceChange }) {
   const [distance, setDistance] = useState("");
-
-  const speeds = {
-    car: 60,
-    bus: 45,
-    train: 80,
-    plane: 500,
-  };
-
-  const travelTime =
-    distance && transportation
-      ? (Number(distance) / speeds[transportation]).toFixed(1)
-      : null;
-
 
   return (
     <>

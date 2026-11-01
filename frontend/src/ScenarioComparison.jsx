@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 function ScenarioComparison({
   tripForm,
@@ -6,6 +6,7 @@ function ScenarioComparison({
   estimatedTravelTime,
   showResults,
   hasInvalidInput,
+  calculationId,
   savedScenario,
   onSavedScenarioChange,
 }) {
@@ -27,27 +28,25 @@ function ScenarioComparison({
 
   const [saveError, setSaveError] = useState("");
 
-useEffect(() => {
-  if (!showResults || hasInvalidInput) return;
-
-  setScenarios((currentScenarios) =>
-    currentScenarios.map((scenario) =>
-      scenario.id === 1
-        ? {
-            ...scenario,
-            origin: tripForm.origin,
-            destination: tripForm.destination,
-            startDate: tripForm.startDate,
-            endDate: tripForm.endDate,
-            transportation: tripForm.transportation,
-            cost: String(estimatedTotal),
-            travelTime: String(estimatedTravelTime),
-            budget: tripForm.budget,
-          }
-        : scenario
-    )
-  );
-}, [showResults, hasInvalidInput, tripForm, estimatedTotal, estimatedTravelTime]);
+  // A new calculation replaces Scenario 1, while keeping duplicated scenarios.
+  // The previous ID guards this render-time adjustment, avoiding an extra effect render.
+  const [lastCalculationId, setLastCalculationId] = useState(null);
+  if (showResults && !hasInvalidInput && calculationId !== lastCalculationId) {
+    setLastCalculationId(calculationId);
+    setScenarios((currentScenarios) =>
+      currentScenarios.map((scenario) => scenario.id === 1 ? {
+        ...scenario,
+        origin: tripForm.origin,
+        destination: tripForm.destination,
+        startDate: tripForm.startDate,
+        endDate: tripForm.endDate,
+        transportation: tripForm.transportation,
+        cost: String(estimatedTotal),
+        travelTime: String(estimatedTravelTime),
+        budget: tripForm.budget,
+      } : scenario)
+    );
+  }
 
   const updateScenario = (id, field, value) => {
     const updatedScenarios = scenarios.map((scenario) =>
