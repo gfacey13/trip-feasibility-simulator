@@ -7,8 +7,24 @@ import FeasibilityAnalysis from "./FeasibilityAnalysis";
 import WeatherDelayChecker from "./WeatherDelayChecker";
 import TripSummary from "./TripSummary";
 
+import UserDashboard from "./UserDashboard";
 
 function App() {
+
+  const [savedScenario, setSavedScenario] = useState(() => {
+    try {
+      const stored = localStorage.getItem("savedPreferredScenario");
+      const parsed = stored ? JSON.parse(stored) : null;
+
+      return parsed &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed)
+        ? parsed
+        : null;
+    } catch {
+      return null;
+    }
+  });
 
   const [transportationCost, setTransportationCost] = useState("");
   const [lodgingCost, setLodgingCost] = useState("");
@@ -21,31 +37,31 @@ function App() {
   const [assessmentId, setAssessmentId] = useState(0);
 
   const [tripForm, setTripForm] = useState({
-  origin: "",
-  destination: "",
-  startDate: "",
-  endDate: "",
-  budget: "",
-  travelers: "",
-  transportation: "",
-});
+    origin: "",
+    destination: "",
+    startDate: "",
+    endDate: "",
+    budget: "",
+    travelers: "",
+    transportation: "",
+  });
 
-const invalidDates =
-  tripForm.startDate &&
-  tripForm.endDate &&
-  new Date(`${tripForm.endDate}T00:00:00`) <=
+  const invalidDates =
+    tripForm.startDate &&
+    tripForm.endDate &&
+    new Date(`${tripForm.endDate}T00:00:00`) <=
     new Date(`${tripForm.startDate}T00:00:00`);
 
-const nights =
-  tripForm.startDate &&
-  tripForm.endDate &&
-  !invalidDates
-    ? Math.round(
+  const nights =
+    tripForm.startDate &&
+      tripForm.endDate &&
+      !invalidDates
+      ? Math.round(
         (new Date(`${tripForm.endDate}T00:00:00`) -
           new Date(`${tripForm.startDate}T00:00:00`)) /
-          (1000 * 60 * 60 * 24)
+        (1000 * 60 * 60 * 24)
       )
-    : 0;
+      : 0;
 
   const hasInvalidInput =
     maxTravelTime === "" ||
@@ -66,7 +82,7 @@ const nights =
     lodgingCost === "" ||
     invalidDates ||
     Number(tripForm.travelers) < 1 ||
-    Number(nights) < 1 || 
+    Number(nights) < 1 ||
     Number(transportationCost) < 0 ||
     Number(lodgingCost) < 0;
 
@@ -87,29 +103,34 @@ const nights =
   const estimatedTotal = transportationTotal + lodgingTotal;
 
   const speeds = {
-  car: 60,
-  bus: 45,
-  train: 80,
-  plane: 500,
-};
+    car: 60,
+    bus: 45,
+    train: 80,
+    plane: 500,
+  };
 
-const estimatedTravelTime =
-  Number(distance) > 0 && speeds[tripForm.transportation]
-    ? (Number(distance) / speeds[tripForm.transportation]).toFixed(1)
-    : null;
+  const estimatedTravelTime =
+    Number(distance) > 0 && speeds[tripForm.transportation]
+      ? (Number(distance) / speeds[tripForm.transportation]).toFixed(1)
+      : null;
 
 
   return (
     <main>
       <h1>Trip Feasibility Simulator</h1>
 
-      <TripInputForm 
+      <UserDashboard
+        key={savedScenario?.savedAt || "saved-trip"}
+        savedTrip={savedScenario}
+      />
+
+      <TripInputForm
         onFormChange={(updatedForm) => {
           setTripForm(updatedForm);
           setShowResults(false);
         }}
       />
-      
+
       <p>Enter your trip details to estimate transportation and lodging costs.</p>
 
       <div className="cost-inputs">
@@ -128,7 +149,7 @@ const estimatedTravelTime =
               setShowResults(false);
             }}
           />
-          
+
         </div>
 
         <div className="form-group">
@@ -161,16 +182,16 @@ const estimatedTravelTime =
             Please complete all required trip details, valid costs, and a positive travel-time limit.
         </p>
       )}
-      
-  
+
+
       {invalidDates && (
         <p className="error-message">
           End date must be after start date.
         </p>
       )}
 
-      <TravelTime 
-        transportation={tripForm.transportation} 
+      <TravelTime
+        transportation={tripForm.transportation}
         onDistanceChange={(newDistance) => {
           setDistance(newDistance);
           setShowResults(false);
@@ -245,6 +266,8 @@ const estimatedTravelTime =
         estimatedTravelTime={estimatedTravelTime}
         showResults={showResults}
         hasInvalidInput={hasInvalidInput}
+        savedScenario={savedScenario}
+        onSavedScenarioChange={setSavedScenario}
       />
 
     </main>
