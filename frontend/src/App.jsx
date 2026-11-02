@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import TravelTime from "./TravelTime";
 import TripInputForm from "./TripInputForm";
@@ -8,13 +8,27 @@ import WeatherDelayChecker from "./WeatherDelayChecker";
 import TripSummary from "./TripSummary";
 
 import UserDashboard from "./UserDashboard";
-import { readSavedTrip } from "./services/savedTripStorage";
 import { evaluateFeasibility } from "./services/evaluateFeasibility";
 
+import AccountPanel from "./AccountPanel";
+import { supabase } from "./services/supabaseClient";
+
 function App() {
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(!supabase);
+   useEffect(() => {
+  if (!supabase) return;
+
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    setUser(session?.user ?? null);
+    setAuthReady(true);
+  });
+
+  return () => data.subscription.unsubscribe();
+}, []);
 
   // Read a validated device snapshot; malformed storage must not break the page.
-  const [savedScenario, setSavedScenario] = useState(() => readSavedTrip());
+  const [savedScenario, setSavedScenario] = useState(null);
 
   const [transportationCost, setTransportationCost] = useState("");
   const [lodgingCost, setLodgingCost] = useState("");
@@ -112,11 +126,25 @@ function App() {
   return (
     <main>
       <h1>Trip Feasibility Simulator</h1>
+         {authReady ? (
+  <AccountPanel user={user} />
+) : (
+  <p role="status">Checking your account…</p>
+)}
 
+{authReady && (
+    user ? (
       <UserDashboard
         key={savedScenario?.savedAt || "saved-trip"}
         savedTrip={savedScenario}
       />
+    ) : (
+      <section className="user-dashboard">
+        <h2>Your Dashboard</h2>
+        <p>Please log in to view your saved trips.</p>
+      </section>
+    )
+  )}
 
       <TripInputForm
         onFormChange={(updatedForm) => {
@@ -227,7 +255,7 @@ function App() {
           <h2>Trip Feasibility Results</h2>
           <p>Transportation: ${transportationTotal}</p>
           <p>Lodging: ${lodgingTotal}</p>
-          
+
           <FeasibilityAnalysis
             analysis={analysis}
             estimatedTotal={estimatedTotal}
@@ -259,6 +287,7 @@ function App() {
        />
       )}
       <ScenarioComparison
+        user={user}
         calculationId={assessmentId}
         tripForm={tripForm}
         estimatedTotal={estimatedTotal}

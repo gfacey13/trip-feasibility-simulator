@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 function ScenarioComparison({
+  user,
   tripForm,
   estimatedTotal,
   estimatedTravelTime,
@@ -99,6 +100,10 @@ function ScenarioComparison({
 };
 
   const savePreferredScenario = () => {
+    if (!user?.id) {
+  setSaveError("Please log in to save your preferred trip.");
+  return;
+}
   const selectedScenario = scenarios.find(
     (scenario) => scenario.id === preferredScenario
   );
