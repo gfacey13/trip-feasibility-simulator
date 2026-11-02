@@ -225,6 +225,7 @@ function App() {
       {showResults && !hasInvalidInput && (
         <>
           <h2>Trip Feasibility Results</h2>
+          <p>Estimated costs use the transportation and lodging prices you entered.</p>
           <p>Transportation: ${transportationTotal}</p>
           <p>Lodging: ${lodgingTotal}</p>
           

@@ -18,6 +18,7 @@ function TripSummary({
       <p><strong>Transportation:</strong> {tripForm.transportation}</p>
 
       <h3>Cost Summary</h3>
+      <p>Cost estimate based on the transportation and lodging prices you entered.</p>
       <p><strong>Transportation Cost:</strong> ${transportationTotal}</p>
       <p><strong>Lodging Cost:</strong> ${lodgingTotal}</p>
       <p><strong>Total Estimated Cost:</strong> ${estimatedTotal}</p>
