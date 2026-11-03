@@ -22,7 +22,7 @@ function UserDashboard({ savedTrip }) {
     return (
       <section className="user-dashboard">
         <h2>Your Dashboard</h2>
-        <p>Saved on this device.</p>
+        <p>Saved to your account.</p>
 
         <div className="dashboard-empty">
           <h3>No saved trip yet</h3>
