@@ -22,7 +22,7 @@ function UserDashboard({ savedTrip }) {
     return (
       <section className="user-dashboard">
         <h2>Your Dashboard</h2>
-        <p>Saved on this device.</p>
+        <p>Saved to your account.</p>
 
         <div className="dashboard-empty">
           <h3>No saved trip yet</h3>
@@ -39,7 +39,7 @@ function UserDashboard({ savedTrip }) {
     <section className="user-dashboard">
       <h2>Your Dashboard</h2>
       <p>
-        Saved on this device. Saving another preferred scenario replaces
+        Saved to your account. Saving another preferred scenario replaces
         this trip. The saved result checks budget only; weather and travel-time
         limits are not saved with this prototype.
       </p>
