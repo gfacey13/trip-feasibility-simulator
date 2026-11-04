@@ -16,7 +16,7 @@ export async function getTripWeather(destination, startDate, endDate, signal) {
   } catch (error) {
     // Let the component cancel an earlier request when trip details change.
     if (signal?.aborted) throw error;
-    throw new Error("The weather service could not be reached. Please try again.");
+    throw new Error("The weather service could not be reached. Please try again.", { cause: error });
   }
 
   let result;
@@ -24,7 +24,7 @@ export async function getTripWeather(destination, startDate, endDate, signal) {
     result = await response.json();
   } catch (error) {
     if (signal?.aborted) throw error;
-    throw new Error("The weather service returned an unreadable response.");
+    throw new Error("The weather service returned an unreadable response.", { cause: error });
   }
 
   if (!response.ok || result?.status !== "retrieved") {
