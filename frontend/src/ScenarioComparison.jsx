@@ -24,6 +24,7 @@ function validNumber(value, minimum) {
 }
 
 function ScenarioComparison({
+  user,
   tripForm,
   estimatedTotal,
   estimatedTravelTime,
@@ -31,6 +32,7 @@ function ScenarioComparison({
   hasInvalidInput,
   calculationId,
   savedScenario,
+  tripBusy,
   onSavedScenarioChange,
   selectedHotel,
 }) {
@@ -53,7 +55,6 @@ function ScenarioComparison({
   const [saveError, setSaveError] = useState("");
   const [lastCalculationId, setLastCalculationId] = useState(null);
 
-  // Capture a snapshot only when the user calculates a valid trip.
   if (
     showResults &&
     !hasInvalidInput &&
@@ -96,7 +97,6 @@ function ScenarioComparison({
 
         let pricing = scenario.pricing;
 
-        // Budget/time edits do not change the source of the cost.
         const changesPriceContext = [
           "origin",
           "destination",
@@ -125,14 +125,13 @@ function ScenarioComparison({
   }
 
   function duplicateScenario(scenario) {
-    setScenarios((current) => [
-      ...current,
-      {
-        ...scenario,
-        id: Math.max(...current.map((item) => item.id)) + 1,
-        pricing: normalizePricing(scenario.pricing),
-      },
-    ]);
+    const duplicate = {
+      ...scenario,
+      id: crypto.randomUUID(),
+      pricing: normalizePricing(scenario.pricing),
+    };
+
+    setScenarios((current) => [...current, duplicate]);
   }
 
   function removeScenario(id) {
@@ -145,7 +144,19 @@ function ScenarioComparison({
     if (preferredScenario === id) setPreferredScenario(null);
   }
 
-  function savePreferredScenario() {
+  function selectPreferred(id) {
+    setPreferredScenario(id);
+    setSaveError("");
+  }
+
+  async function savePreferredScenario() {
+    if (tripBusy) return;
+
+    if (!user?.id) {
+      setSaveError("Please log in to save your preferred trip.");
+      return;
+    }
+
     const selected = scenarios.find(
       (scenario) => scenario.id === preferredScenario
     );
@@ -189,23 +200,25 @@ function ScenarioComparison({
     };
 
     try {
-      localStorage.setItem(
-        "savedPreferredScenario",
-        JSON.stringify(tripToSave)
-      );
-      onSavedScenarioChange(tripToSave);
+      await onSavedScenarioChange(tripToSave);
       setSaveError("");
     } catch {
       setSaveError(
-        "The trip could not be saved on this device. Please try again."
+        "Your trip could not be saved to your account. Please try again."
       );
     }
   }
 
-  function deleteSavedScenario() {
+  async function deleteSavedScenario() {
+    if (!user?.id) {
+      setSaveError("Please log in to manage your saved trip.");
+      return;
+    }
+
+    if (tripBusy) return;
+
     try {
-      localStorage.removeItem("savedPreferredScenario");
-      onSavedScenarioChange(null);
+      await onSavedScenarioChange(null);
       setSaveError("");
     } catch {
       setSaveError("The saved trip could not be deleted. Please try again.");
@@ -233,7 +246,9 @@ function ScenarioComparison({
       </p>
 
       {saveError && (
-        <p className="error-message" role="alert">{saveError}</p>
+        <p className="error-message" role="alert">
+          {saveError}
+        </p>
       )}
 
       <div
@@ -258,7 +273,7 @@ function ScenarioComparison({
           >
             <h3>
               Scenario {index + 1}
-              {preferredScenario === scenario.id && " ⭐ Preferred"}
+              {preferredScenario === scenario.id && " — Preferred"}
             </h3>
 
             {fields.map(([field, label, type]) => (
@@ -320,10 +335,15 @@ function ScenarioComparison({
               <p>
                 <strong>Within Budget:</strong> {budgetLabel(scenario)}
               </p>
-              <small>This budget check is not a full feasibility assessment.</small>
+              <small>
+                This budget check is not a full feasibility assessment.
+              </small>
             </div>
 
-            <button type="button" onClick={() => duplicateScenario(scenario)}>
+            <button
+              type="button"
+              onClick={() => duplicateScenario(scenario)}
+            >
               Duplicate Scenario
             </button>
             <button
@@ -335,7 +355,7 @@ function ScenarioComparison({
             </button>
             <button
               type="button"
-              onClick={() => setPreferredScenario(scenario.id)}
+              onClick={() => selectPreferred(scenario.id)}
             >
               Select Preferred
             </button>
@@ -349,20 +369,29 @@ function ScenarioComparison({
             Preferred Scenario: Scenario{" "}
             {scenarios.findIndex((item) => item.id === preferredScenario) + 1}
           </p>
-          <button type="button" onClick={savePreferredScenario}>
-            Save Preferred Scenario
+          <button
+            type="button"
+            disabled={tripBusy}
+            onClick={savePreferredScenario}
+          >
+            {tripBusy ? "Please wait..." : "Save Preferred Scenario"}
           </button>
         </div>
       )}
 
-      {savedScenario && (
+      {user && savedScenario && (
         <div className="saved-scenario">
           <h3>Saved Preferred Scenario</h3>
+          <p>Saved to your account.</p>
           <p>{savedScenario.origin} to {savedScenario.destination}</p>
           <p>Estimated Cost: ${savedScenario.cost}</p>
           <p>Pricing Source: {pricingLabel(savedScenario.pricing)}</p>
           <p>Travel Time: {savedScenario.travelTime} hours</p>
-          <button type="button" onClick={deleteSavedScenario}>
+          <button
+            type="button"
+            disabled={tripBusy}
+            onClick={deleteSavedScenario}
+          >
             Delete Saved Scenario
           </button>
         </div>
