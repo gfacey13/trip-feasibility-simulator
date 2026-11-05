@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { buildStoredReport } from "./services/buildStoredReport";
 
 function ScenarioComparison({
   user,
@@ -9,8 +10,10 @@ function ScenarioComparison({
   hasInvalidInput,
   calculationId,
   savedScenario,
-  tripBusy,
-  onSavedScenarioChange,
+  savingDisabled = false,
+  onSaveTrip,
+  onDeleteTrip,
+  reportContext,
 }) {
   const [scenarios, setScenarios] = useState([
     {
@@ -28,6 +31,8 @@ function ScenarioComparison({
 
   const [preferredScenario, setPreferredScenario] = useState(null);
   const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const tripBusy = savingDisabled || saving;
   const [lastCalculationId, setLastCalculationId] = useState(null);
 
   // Update Scenario 1 after a new calculation.
@@ -104,13 +109,16 @@ function ScenarioComparison({
 
     if (tripBusy) return;
 
+    setSaving(true);
     try {
-      await onSavedScenarioChange(null);
+      await onDeleteTrip();
       setSaveError("");
     } catch {
       setSaveError(
         "The saved trip could not be deleted. Please try again."
       );
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -164,6 +172,7 @@ function ScenarioComparison({
 
     const tripToSave = {
       ...selectedScenario,
+      report: buildStoredReport(selectedScenario, reportContext),
       budgetResult:
         Number(selectedScenario.cost) <= Number(selectedScenario.budget)
           ? "Within budget"
@@ -171,13 +180,16 @@ function ScenarioComparison({
       savedAt: new Date().toISOString(),
     };
 
+    setSaving(true);
     try {
-      await onSavedScenarioChange(tripToSave);
+      await onSaveTrip(tripToSave);
       setSaveError("");
     } catch {
       setSaveError(
         "Your trip could not be saved to your account. Please try again."
       );
+    } finally {
+      setSaving(false);
     }
   };
 

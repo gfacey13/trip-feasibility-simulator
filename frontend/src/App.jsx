@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import TravelTime from "./TravelTime";
 import TripInputForm from "./TripInputForm";
@@ -9,26 +9,34 @@ import TripSummary from "./TripSummary";
 import UserDashboard from "./UserDashboard";
 import AccountPanel from "./AccountPanel";
 import { evaluateFeasibility } from "./services/evaluateFeasibility";
-import { readSavedTrip } from "./services/savedTripStorage";
+import { useSavedTrip } from "./services/useSavedTrip";
 import { supabase } from "./services/supabaseClient";
 
 function App() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(!supabase);
-  const [savedScenario, setSavedScenario] = useState(null);
-  const [tripError, setTripError] = useState("");
-  const [tripLoading, setTripLoading] = useState(false);
-  const [tripBusy, setTripBusy] = useState(false);
 
-  const currentUserId = useRef(null);
-  const requestVersion = useRef(0);
-  const mutationBusy = useRef(false);
+  useEffect(() => {
+    if (!supabase) return;
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setAuthReady(true);
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  const {
+    savedScenario, loading: tripLoading, error: tripError,
+    retryLoad, saveTrip, deleteTrip,
+  } = useSavedTrip(user);
 
   const [transportationCost, setTransportationCost] = useState("");
   const [lodgingCost, setLodgingCost] = useState("");
   const [showResults, setShowResults] = useState(false);
   const [distance, setDistance] = useState("");
+  // Keep the limit user-defined rather than assuming every trip must be under 8 hours.
   const [maxTravelTime, setMaxTravelTime] = useState("");
+  // The weather component reports its request state to the main assessment.
   const [weather, setWeather] = useState(null);
   const [assessmentId, setAssessmentId] = useState(0);
 
@@ -41,174 +49,6 @@ function App() {
     travelers: "",
     transportation: "",
   });
-
-  useEffect(() => {
-    if (!supabase) return;
-
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      const nextUser = session?.user ?? null;
-      const nextId = nextUser?.id ?? null;
-
-      if (currentUserId.current !== nextId) {
-        currentUserId.current = nextId;
-        requestVersion.current += 1;
-        mutationBusy.current = false;
-
-        setSavedScenario(null);
-        setTripError("");
-        setTripBusy(false);
-        setTripLoading(Boolean(nextId));
-      }
-
-      setUser(nextUser);
-      setAuthReady(true);
-    });
-
-    return () => {
-      requestVersion.current += 1;
-      data.subscription.unsubscribe();
-    };
-  }, []);
-
-  const userId = user?.id ?? null;
-
-  useEffect(() => {
-    if (!supabase || !userId) return;
-
-    let active = true;
-    const version = ++requestVersion.current;
-
-    async function loadPreferredTrip() {
-      try {
-        const { data, error } = await supabase
-          .from("preferred_trips")
-          .select("scenario")
-          .eq("user_id", userId)
-          .maybeSingle();
-
-        if (error) throw error;
-
-        let trip = null;
-
-        if (data) {
-          // Reuse the existing validator for the account's saved snapshot.
-          trip = readSavedTrip({
-            getItem: () => JSON.stringify(data.scenario),
-          });
-
-          if (!trip) {
-            throw new Error("Invalid saved trip.");
-          }
-        }
-
-        if (
-          active &&
-          version === requestVersion.current &&
-          currentUserId.current === userId
-        ) {
-          setSavedScenario(trip);
-        }
-      } catch {
-        if (
-          active &&
-          version === requestVersion.current &&
-          currentUserId.current === userId
-        ) {
-          setTripError(
-            "Your saved trip could not be loaded. Refresh the page to try again."
-          );
-        }
-      } finally {
-        if (
-          active &&
-          version === requestVersion.current &&
-          currentUserId.current === userId
-        ) {
-          setTripLoading(false);
-        }
-      }
-    }
-
-    loadPreferredTrip();
-
-    return () => {
-      active = false;
-    };
-  }, [userId]);
-
-  async function changePreferredTrip(nextTrip) {
-    const ownerId = user?.id;
-
-    if (!supabase || !ownerId || currentUserId.current !== ownerId) {
-      throw new Error("Please log in to manage your saved trip.");
-    }
-
-    if (tripLoading || mutationBusy.current) {
-      throw new Error("Please wait for the current trip request to finish.");
-    }
-
-    let validatedTrip = null;
-
-    if (nextTrip !== null) {
-      validatedTrip = readSavedTrip({
-        getItem: () => JSON.stringify(nextTrip),
-      });
-
-      if (!validatedTrip) {
-        throw new Error("Enter valid trip details before saving.");
-      }
-    }
-
-    mutationBusy.current = true;
-    setTripBusy(true);
-    setTripError("");
-    const version = ++requestVersion.current;
-
-    try {
-      const { data: account, error: accountError } =
-        await supabase.auth.getUser();
-
-      if (
-        accountError ||
-        account.user?.id !== ownerId ||
-        currentUserId.current !== ownerId ||
-        version !== requestVersion.current
-      ) {
-        throw new Error("Your account changed. Please try again.");
-      }
-
-      if (validatedTrip === null) {
-        const { error } = await supabase
-          .from("preferred_trips")
-          .delete()
-          .eq("user_id", ownerId);
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("preferred_trips")
-          .upsert(
-            { user_id: ownerId, scenario: validatedTrip },
-            { onConflict: "user_id" }
-          );
-
-        if (error) throw error;
-      }
-
-      // A response from an old account must not update the current screen.
-      if (
-        version === requestVersion.current &&
-        currentUserId.current === ownerId
-      ) {
-        setSavedScenario(validatedTrip);
-      }
-    } finally {
-      if (version === requestVersion.current) {
-        mutationBusy.current = false;
-        setTripBusy(false);
-      }
-    }
-  }
 
   const invalidDates =
     tripForm.startDate &&
@@ -282,37 +122,31 @@ function App() {
     <main>
       <h1>Trip Feasibility Simulator</h1>
 
-      {authReady ? (
-        <AccountPanel user={user} />
+      {authReady ? <AccountPanel key={user?.id ?? 'guest'} user={user} /> : (
+        <p role="status">Checking your account...</p>
+      )}
+      {authReady && (user ? (
+        <>
+          {tripLoading && <p role="status">Loading your saved trip...</p>}
+          {tripError && (
+            <p role="alert">
+              {tripError} <button type="button" onClick={retryLoad}>Retry</button>
+            </p>
+          )}
+          {!tripLoading && !tripError && (
+            <UserDashboard
+              accountSaved
+              key={`${user.id}-${savedScenario?.savedAt ?? 'empty'}`}
+              savedTrip={savedScenario}
+            />
+          )}
+        </>
       ) : (
-        <p role="status">Checking your account…</p>
-      )}
-
-      {authReady && (
-        user ? (
-          <>
-            {tripError && (
-              <p className="error-message" role="alert">
-                {tripError}
-              </p>
-            )}
-
-            {tripLoading ? (
-              <p role="status">Loading your saved trip…</p>
-            ) : tripError ? null : (
-              <UserDashboard
-                key={`${user.id}-${savedScenario?.savedAt || "empty"}`}
-                savedTrip={savedScenario}
-              />
-            )}
-          </>
-        ) : (
-          <section className="user-dashboard">
-            <h2>Your Dashboard</h2>
-            <p>Please log in to view your saved trips.</p>
-          </section>
-        )
-      )}
+        <section className="user-dashboard">
+          <h2>Your Dashboard</h2>
+          <p>Please log in to view your saved trips.</p>
+        </section>
+      ))}
 
       <TripInputForm
         onFormChange={(updatedForm) => {
@@ -455,7 +289,6 @@ function App() {
       )}
 
       <ScenarioComparison
-        key={user?.id || "guest"}
         user={user}
         calculationId={assessmentId}
         tripForm={tripForm}
@@ -464,8 +297,12 @@ function App() {
         showResults={showResults}
         hasInvalidInput={hasInvalidInput}
         savedScenario={savedScenario}
-        tripBusy={tripBusy || tripLoading}
-        onSavedScenarioChange={changePreferredTrip}
+        key={user?.id ?? 'guest'}
+        reportContext={{ tripForm, transportationTotal, lodgingTotal, estimatedTotal,
+          estimatedTravelTime, maxTravelTime, analysis, weather }}
+        onSaveTrip={saveTrip}
+        onDeleteTrip={deleteTrip}
+        savingDisabled={!authReady || tripLoading || Boolean(tripError)}
       />
     </main>
   );

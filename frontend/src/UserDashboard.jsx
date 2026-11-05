@@ -15,14 +15,14 @@ function money(value) {
   });
 }
 
-function UserDashboard({ savedTrip }) {
+function UserDashboard({ savedTrip, accountSaved = false }) {
   const [showSummary, setShowSummary] = useState(false);
 
   if (!savedTrip) {
     return (
       <section className="user-dashboard">
         <h2>Your Dashboard</h2>
-        <p>Saved to your account.</p>
+        <p>{accountSaved ? "Saved to your account." : "Saved on this device."}</p>
 
         <div className="dashboard-empty">
           <h3>No saved trip yet</h3>
@@ -39,9 +39,8 @@ function UserDashboard({ savedTrip }) {
     <section className="user-dashboard">
       <h2>Your Dashboard</h2>
       <p>
-        Saved to your account. Saving another preferred scenario replaces
-        this trip. The saved result checks budget only; weather and travel-time
-        limits are not saved with this prototype.
+        {accountSaved ? "Saved to your account." : "Saved on this device."} Saving another preferred scenario replaces
+        this trip. This dashboard checks budget only.
       </p>
 
       <div className="dashboard-grid">
