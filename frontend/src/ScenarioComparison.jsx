@@ -1,4 +1,27 @@
 import { useState } from "react";
+import {
+  normalizePricing,
+  pricingLabel,
+} from "./services/savedTripStorage";
+
+const fields = [
+  ["origin", "Origin", "text"],
+  ["destination", "Destination", "text"],
+  ["startDate", "Start Date", "date"],
+  ["endDate", "End Date", "date"],
+  ["cost", "Estimated Cost ($)", "number"],
+  ["travelTime", "Travel Time (hours)", "number"],
+  ["budget", "Budget ($)", "number"],
+];
+
+function validNumber(value, minimum) {
+  return (
+    value != null &&
+    String(value).trim() !== "" &&
+    Number.isFinite(Number(value)) &&
+    Number(value) >= minimum
+  );
+}
 
 function ScenarioComparison({
   tripForm,
@@ -9,6 +32,7 @@ function ScenarioComparison({
   calculationId,
   savedScenario,
   onSavedScenarioChange,
+  selectedHotel,
 }) {
   const [scenarios, setScenarios] = useState([
     {
@@ -21,167 +45,196 @@ function ScenarioComparison({
       cost: "",
       travelTime: "",
       budget: "",
+      pricing: { source: "manual" },
     },
   ]);
 
   const [preferredScenario, setPreferredScenario] = useState(null);
-
   const [saveError, setSaveError] = useState("");
-
-  // A new calculation replaces Scenario 1, while keeping duplicated scenarios.
-  // The previous ID guards this render-time adjustment, avoiding an extra effect render.
   const [lastCalculationId, setLastCalculationId] = useState(null);
-  if (showResults && !hasInvalidInput && calculationId !== lastCalculationId) {
+
+  // Capture a snapshot only when the user calculates a valid trip.
+  if (
+    showResults &&
+    !hasInvalidInput &&
+    calculationId !== lastCalculationId
+  ) {
     setLastCalculationId(calculationId);
-    setScenarios((currentScenarios) =>
-      currentScenarios.map((scenario) => scenario.id === 1 ? {
-        ...scenario,
-        origin: tripForm.origin,
-        destination: tripForm.destination,
-        startDate: tripForm.startDate,
-        endDate: tripForm.endDate,
-        transportation: tripForm.transportation,
-        cost: String(estimatedTotal),
-        travelTime: String(estimatedTravelTime),
-        budget: tripForm.budget,
-      } : scenario)
+
+    const calculatedScenario = {
+      id: 1,
+      origin: tripForm.origin,
+      destination: tripForm.destination,
+      startDate: tripForm.startDate,
+      endDate: tripForm.endDate,
+      transportation: tripForm.transportation,
+      cost: String(estimatedTotal),
+      travelTime: String(estimatedTravelTime),
+      budget: tripForm.budget,
+      pricing: selectedHotel
+        ? normalizePricing({
+            source: "liteapi-sandbox",
+            hotelName: selectedHotel.hotelName,
+            lodgingTotal: selectedHotel.total,
+          })
+        : { source: "manual" },
+    };
+
+    setScenarios((current) =>
+      current.some((scenario) => scenario.id === 1)
+        ? current.map((scenario) =>
+            scenario.id === 1 ? calculatedScenario : scenario
+          )
+        : [calculatedScenario, ...current]
     );
   }
 
-  const updateScenario = (id, field, value) => {
-    const updatedScenarios = scenarios.map((scenario) =>
-      scenario.id === id
-        ? {
-            ...scenario,
-            [field]: value,
-          }
-        : scenario
+  function updateScenario(id, field, value) {
+    setScenarios((current) =>
+      current.map((scenario) => {
+        if (scenario.id !== id) return scenario;
+
+        let pricing = scenario.pricing;
+
+        // Budget/time edits do not change the source of the cost.
+        const changesPriceContext = [
+          "origin",
+          "destination",
+          "startDate",
+          "endDate",
+          "transportation",
+          "cost",
+        ].includes(field);
+
+        if (changesPriceContext && scenario[field] !== value) {
+          const source = normalizePricing(pricing).source;
+
+          pricing = {
+            source:
+              source === "liteapi-sandbox" || source === "edited-sandbox"
+                ? "edited-sandbox"
+                : "manual",
+          };
+        }
+
+        return { ...scenario, [field]: value, pricing };
+      })
     );
 
-    setScenarios(updatedScenarios);
-  };
+    setSaveError("");
+  }
 
-  const duplicateScenario = (scenario) => {
-    const newScenario = {
-      ...scenario,
-      id: Date.now(),
-    };
+  function duplicateScenario(scenario) {
+    setScenarios((current) => [
+      ...current,
+      {
+        ...scenario,
+        id: Math.max(...current.map((item) => item.id)) + 1,
+        pricing: normalizePricing(scenario.pricing),
+      },
+    ]);
+  }
 
-    setScenarios([...scenarios, newScenario]);
-  };
+  function removeScenario(id) {
+    if (scenarios.length === 1) return;
 
-  const removeScenario = (id) => {
-    if (scenarios.length === 1) {
+    setScenarios((current) =>
+      current.filter((scenario) => scenario.id !== id)
+    );
+
+    if (preferredScenario === id) setPreferredScenario(null);
+  }
+
+  function savePreferredScenario() {
+    const selected = scenarios.find(
+      (scenario) => scenario.id === preferredScenario
+    );
+
+    if (!selected) {
+      setSaveError("Select a preferred scenario first.");
       return;
     }
 
-    setScenarios((currentScenarios) =>
-      currentScenarios.filter((scenario) => scenario.id !== id)
-    );
+    const start = Date.parse(selected.startDate);
+    const end = Date.parse(selected.endDate);
 
-    if (preferredScenario === id) {
-      setPreferredScenario(null);
+    const validTrip =
+      selected.origin.trim() !== "" &&
+      selected.destination.trim() !== "" &&
+      Number.isFinite(start) &&
+      Number.isFinite(end) &&
+      end > start &&
+      ["car", "bus", "train", "plane"].includes(selected.transportation) &&
+      validNumber(selected.cost, 0) &&
+      validNumber(selected.budget, 0) &&
+      Number(selected.budget) > 0 &&
+      validNumber(selected.travelTime, 0);
+
+    if (!validTrip) {
+      setSaveError(
+        "Complete the selected scenario with valid locations, dates, " +
+          "transportation, cost, budget, and travel time before saving."
+      );
+      return;
     }
-  };
 
-  const selectPreferred = (id) => {
-    setPreferredScenario(id);
-  };
+    const tripToSave = {
+      ...selected,
+      pricing: normalizePricing(selected.pricing),
+      budgetResult:
+        Number(selected.cost) <= Number(selected.budget)
+          ? "Within budget"
+          : "Over budget",
+      savedAt: new Date().toISOString(),
+    };
 
-  const deleteSavedScenario = () => {
-  try {
-    localStorage.removeItem("savedPreferredScenario");
-    onSavedScenarioChange(null);
-    setSaveError("");
-  } catch {
-    setSaveError("The saved trip could not be deleted. Please try again.");
-  }
-};
-
-  const savePreferredScenario = () => {
-  const selectedScenario = scenarios.find(
-    (scenario) => scenario.id === preferredScenario
-  );
-
-  if (!selectedScenario) {
-    setSaveError("Select a preferred scenario first.");
-    return;
-  }
-
-  const validNumber = (value, minimum) =>
-    value != null &&
-    String(value).trim() !== "" &&
-    Number.isFinite(Number(value)) &&
-    Number(value) >= minimum;
-
-  const start = Date.parse(selectedScenario.startDate);
-  const end = Date.parse(selectedScenario.endDate);
-
-  const validTrip =
-    selectedScenario.origin.trim() !== "" &&
-    selectedScenario.destination.trim() !== "" &&
-    Number.isFinite(start) &&
-    Number.isFinite(end) &&
-    end > start &&
-    ["car", "bus", "train", "plane"].includes(
-      selectedScenario.transportation
-    ) &&
-    validNumber(selectedScenario.cost, 0) &&
-    validNumber(selectedScenario.budget, 0) &&
-    Number(selectedScenario.budget) > 0 &&
-    validNumber(selectedScenario.travelTime, 0);
-
-  if (!validTrip) {
-    setSaveError(
-      "Complete the selected scenario with valid locations, dates, " +
-      "transportation, cost, budget, and travel time before saving."
-    );
-    return;
+    try {
+      localStorage.setItem(
+        "savedPreferredScenario",
+        JSON.stringify(tripToSave)
+      );
+      onSavedScenarioChange(tripToSave);
+      setSaveError("");
+    } catch {
+      setSaveError(
+        "The trip could not be saved on this device. Please try again."
+      );
+    }
   }
 
-  const tripToSave = {
-    ...selectedScenario,
-    budgetResult:
-      Number(selectedScenario.cost) <= Number(selectedScenario.budget)
-        ? "Within budget"
-        : "Over budget",
-    savedAt: new Date().toISOString(),
-  };
-
-  try {
-    localStorage.setItem(
-      "savedPreferredScenario",
-      JSON.stringify(tripToSave)
-    );
-
-    onSavedScenarioChange(tripToSave);
-    setSaveError("");
-  } catch {
-    setSaveError(
-      "The trip could not be saved on this device. Please try again."
-    );
+  function deleteSavedScenario() {
+    try {
+      localStorage.removeItem("savedPreferredScenario");
+      onSavedScenarioChange(null);
+      setSaveError("");
+    } catch {
+      setSaveError("The saved trip could not be deleted. Please try again.");
+    }
   }
-};
 
-  const getFeasibility = (scenario) => {
-    if (scenario.cost === "" || scenario.budget === "") {
+  function budgetLabel(scenario) {
+    if (
+      !validNumber(scenario.cost, 0) ||
+      !validNumber(scenario.budget, 0) ||
+      Number(scenario.budget) <= 0
+    ) {
       return "Not enough information";
     }
 
-    return Number(scenario.cost) <= Number(scenario.budget)
-      ? "Yes"
-      : "No";
-  };
+    return Number(scenario.cost) <= Number(scenario.budget) ? "Yes" : "No";
+  }
 
   return (
     <div>
       <h2>Scenario Comparison</h2>
+      <p>
+        Scenarios are saved snapshots. Changing their fields does not
+        fetch new hotel prices or recalculate the total.
+      </p>
 
       {saveError && (
-  <p className="error-message" role="alert">
-    {saveError}
-  </p>
-)}
+        <p className="error-message" role="alert">{saveError}</p>
+      )}
 
       <div
         className="scenario-container"
@@ -190,107 +243,46 @@ function ScenarioComparison({
           gap: "20px",
           alignItems: "flex-start",
           flexWrap: "wrap",
-     }}
-   >
+        }}
+      >
         {scenarios.map((scenario, index) => (
           <div
-           className="scenario-card"
-           key={scenario.id}
-           style={{
-             flex: "1 1 300px",
-             border: "1px solid #ccc",
-             padding: "20px",
-             borderRadius: "8px",
-         }}
-     >
+            className="scenario-card"
+            key={scenario.id}
+            style={{
+              flex: "1 1 300px",
+              border: "1px solid #ccc",
+              padding: "20px",
+              borderRadius: "8px",
+            }}
+          >
             <h3>
               Scenario {index + 1}
               {preferredScenario === scenario.id && " ⭐ Preferred"}
             </h3>
 
-            <div className="form-group">
-              <label htmlFor={`origin-${scenario.id}`}>
-                Origin:
-              </label>
-
-              <input
-                id={`origin-${scenario.id}`}
-                type="text"
-                placeholder="Enter origin"
-                value={scenario.origin}
-                onChange={(event) =>
-                  updateScenario(
-                    scenario.id,
-                    "origin",
-                    event.target.value
-                  )
-                }
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor={`destination-${scenario.id}`}>
-                Destination:
-              </label>
-
-              <input
-                id={`destination-${scenario.id}`}
-                type="text"
-                placeholder="Enter destination"
-                value={scenario.destination}
-                onChange={(event) =>
-                  updateScenario(
-                    scenario.id,
-                    "destination",
-                    event.target.value
-                  )
-                }
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor={`start-${scenario.id}`}>
-                Start Date:
-              </label>
-
-              <input
-                id={`start-${scenario.id}`}
-                type="date"
-                value={scenario.startDate}
-                onChange={(event) =>
-                  updateScenario(
-                    scenario.id,
-                    "startDate",
-                    event.target.value
-                  )
-                }
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor={`end-${scenario.id}`}>
-                End Date:
-              </label>
-
-              <input
-                id={`end-${scenario.id}`}
-                type="date"
-                value={scenario.endDate}
-                onChange={(event) =>
-                  updateScenario(
-                    scenario.id,
-                    "endDate",
-                    event.target.value
-                  )
-                }
-              />
-            </div>
+            {fields.map(([field, label, type]) => (
+              <div className="form-group" key={field}>
+                <label htmlFor={`${field}-${scenario.id}`}>
+                  {label}:
+                </label>
+                <input
+                  id={`${field}-${scenario.id}`}
+                  type={type}
+                  min={type === "number" ? "0" : undefined}
+                  step={type === "number" ? "any" : undefined}
+                  value={scenario[field]}
+                  onChange={(event) =>
+                    updateScenario(scenario.id, field, event.target.value)
+                  }
+                />
+              </div>
+            ))}
 
             <div className="form-group">
               <label htmlFor={`transportation-${scenario.id}`}>
                 Transportation:
               </label>
-
               <select
                 id={`transportation-${scenario.id}`}
                 value={scenario.transportation}
@@ -310,107 +302,40 @@ function ScenarioComparison({
               </select>
             </div>
 
-            <div className="form-group">
-              <label htmlFor={`cost-${scenario.id}`}>
-                Estimated Cost ($):
-              </label>
-
-              <input
-                id={`cost-${scenario.id}`}
-                type="number"
-                min="0"
-                placeholder="Enter estimated cost"
-                value={scenario.cost}
-                onChange={(event) =>
-                  updateScenario(
-                    scenario.id,
-                    "cost",
-                    event.target.value
-                  )
-                }
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor={`travel-time-${scenario.id}`}>
-                Travel Time (hours):
-              </label>
-
-              <input
-                id={`travel-time-${scenario.id}`}
-                type="number"
-                min="0"
-                step="0.1"
-                placeholder="Enter travel time"
-                value={scenario.travelTime}
-                onChange={(event) =>
-                  updateScenario(
-                    scenario.id,
-                    "travelTime",
-                    event.target.value
-                  )
-                }
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor={`budget-${scenario.id}`}>
-                Budget ($):
-              </label>
-
-              <input
-                id={`budget-${scenario.id}`}
-                type="number"
-                min="0"
-                placeholder="Enter budget"
-                value={scenario.budget}
-                onChange={(event) =>
-                  updateScenario(
-                    scenario.id,
-                    "budget",
-                    event.target.value
-                  )
-                }
-              />
-            </div>
-
             <div className="scenario-results">
               <p>
                 <strong>Estimated Cost:</strong>{" "}
-                {scenario.cost === ""
-                  ? "Not entered"
-                  : `$${scenario.cost}`}
+                {scenario.cost === "" ? "Not entered" : `$${scenario.cost}`}
               </p>
-
+              <p>
+                <strong>Pricing Source:</strong>{" "}
+                {pricingLabel(scenario.pricing)}
+              </p>
               <p>
                 <strong>Travel Time:</strong>{" "}
                 {scenario.travelTime === ""
                   ? "Not entered"
                   : `${scenario.travelTime} hours`}
               </p>
-
               <p>
-                <strong>Within Budget:</strong>{" "}
-                {getFeasibility(scenario)}
+                <strong>Within Budget:</strong> {budgetLabel(scenario)}
               </p>
+              <small>This budget check is not a full feasibility assessment.</small>
             </div>
 
-            <button
-              onClick={() => duplicateScenario(scenario)}
-            >
+            <button type="button" onClick={() => duplicateScenario(scenario)}>
               Duplicate Scenario
             </button>
             <button
+              type="button"
               onClick={() => removeScenario(scenario.id)}
               disabled={scenarios.length === 1}
-              style={{ marginLeft: "10px" }}
             >
               Remove Scenario
             </button>
-
             <button
-              onClick={() => selectPreferred(scenario.id)}
-              style={{ marginLeft: "10px" }}
+              type="button"
+              onClick={() => setPreferredScenario(scenario.id)}
             >
               Select Preferred
             </button>
@@ -421,20 +346,10 @@ function ScenarioComparison({
       {preferredScenario !== null && (
         <div className="preferred-section">
           <p>
-            Preferred Scenario:{" "}
-            {scenarios.find(
-              (scenario) => scenario.id === preferredScenario
-            )
-              ? `Scenario ${
-                  scenarios.findIndex(
-                    (scenario) =>
-                      scenario.id === preferredScenario
-                  ) + 1
-                }`
-              : ""}
+            Preferred Scenario: Scenario{" "}
+            {scenarios.findIndex((item) => item.id === preferredScenario) + 1}
           </p>
-
-          <button onClick={savePreferredScenario}>
+          <button type="button" onClick={savePreferredScenario}>
             Save Preferred Scenario
           </button>
         </div>
@@ -443,20 +358,15 @@ function ScenarioComparison({
       {savedScenario && (
         <div className="saved-scenario">
           <h3>Saved Preferred Scenario</h3>
-          <p>
-            {savedScenario.origin} to {savedScenario.destination}
-          </p>
+          <p>{savedScenario.origin} to {savedScenario.destination}</p>
           <p>Estimated Cost: ${savedScenario.cost}</p>
+          <p>Pricing Source: {pricingLabel(savedScenario.pricing)}</p>
           <p>Travel Time: {savedScenario.travelTime} hours</p>
-          <button
-            type="button"
-            onClick={deleteSavedScenario}
-          >
+          <button type="button" onClick={deleteSavedScenario}>
             Delete Saved Scenario
           </button>
         </div>
       )}
-
     </div>
   );
 }
