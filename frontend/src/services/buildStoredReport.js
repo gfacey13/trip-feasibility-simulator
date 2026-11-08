@@ -1,4 +1,5 @@
 import { evaluateFeasibility } from './evaluateFeasibility';
+import { normalizePricing } from './savedTripStorage';
 
 export function buildStoredReport(scenario, context) {
   const sameJourney = ['origin', 'destination', 'startDate', 'endDate', 'transportation']
@@ -18,6 +19,7 @@ export function buildStoredReport(scenario, context) {
     estimatedTravelTime: Number(scenario.travelTime),
     maxTravelTime: Number(context.maxTravelTime) || null,
     budget: Number(scenario.budget),
+    pricing: normalizePricing(scenario.pricing),
     weather,
     analysis: sameCalculation ? context.analysis : evaluateFeasibility({
       estimatedTotal: Number(scenario.cost), budget: Number(scenario.budget),

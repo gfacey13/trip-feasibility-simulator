@@ -1,23 +1,9 @@
-import { useState } from "react";
-
-function TripInputForm({ onFormChange }) {
-  const [form, setForm] = useState({
-    origin: "",
-    destination: "",
-    startDate: "",
-    endDate: "",
-    budget: "",
-    travelers: "",
-    transportation: "",
-  });
-
+function TripInputForm({ form, onFormChange }) {
   const handleChange = (e) => {
     const updatedForm = {
       ...form,
       [e.target.id]: e.target.value,
     };
-
-    setForm(updatedForm);
 
     if (onFormChange) {
       onFormChange(updatedForm);

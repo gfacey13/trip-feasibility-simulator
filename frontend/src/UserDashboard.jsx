@@ -1,4 +1,7 @@
+import HotelRoomBreakdown from "./HotelRoomBreakdown";
+
 import { useState } from "react";
+import { pricingLabel } from "./services/savedTripStorage";
 
 function money(value) {
   if (
@@ -61,6 +64,8 @@ function UserDashboard({ savedTrip, accountSaved = false }) {
             {savedTrip.budgetResult || "No saved result"}
           </p>
 
+          <p><strong>Pricing source:</strong> {pricingLabel(savedTrip.pricing)}</p>
+
           <button
             type="button"
             aria-expanded={showSummary}
@@ -72,6 +77,7 @@ function UserDashboard({ savedTrip, accountSaved = false }) {
           {showSummary && (
             <div className="dashboard-summary">
               <h4>Saved Trip Summary</h4>
+              <HotelRoomBreakdown rooms={savedTrip.pricing?.rooms} nights={savedTrip.pricing?.nights} />
 
               <p>
                 <strong>Origin:</strong>{" "}
