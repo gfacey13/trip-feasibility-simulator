@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { buildStoredReport } from "./services/buildStoredReport";
 
 function ScenarioComparison({
@@ -10,6 +10,7 @@ function ScenarioComparison({
   hasInvalidInput,
   calculationId,
   savedScenario,
+  editingScenario,
   savingDisabled = false,
   onSaveTrip,
   onDeleteTrip,
@@ -34,7 +35,18 @@ function ScenarioComparison({
   const [saving, setSaving] = useState(false);
   const tripBusy = savingDisabled || saving;
   const [lastCalculationId, setLastCalculationId] = useState(null);
+useEffect(() => {
+  if (!editingScenario) return;
 
+  setScenarios([
+    {
+      ...editingScenario,
+      id: 1,
+    },
+  ]);
+
+  setPreferredScenario(1);
+}, [editingScenario]);
   // Update Scenario 1 after a new calculation.
   if (
     showResults &&

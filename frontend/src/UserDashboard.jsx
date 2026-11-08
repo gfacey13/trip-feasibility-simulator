@@ -15,7 +15,11 @@ function money(value) {
   });
 }
 
-function UserDashboard({ savedTrip, accountSaved = false }) {
+function UserDashboard({
+  savedTrip,
+  accountSaved = false,
+  onEditTrip,
+}) {
   const [showSummary, setShowSummary] = useState(false);
 
   if (!savedTrip) {
@@ -114,6 +118,12 @@ function UserDashboard({ savedTrip, accountSaved = false }) {
                 <strong>Budget feasibility:</strong>{" "}
                 {savedTrip.budgetResult || "No saved result"}
               </p>
+              <button
+                type="button"
+                onClick={() => onEditTrip?.(savedTrip)}
+                >
+                 Edit Saved Trip
+                </button>
             </div>
           )}
         </article>

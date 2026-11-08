@@ -39,7 +39,7 @@ function App() {
   // The weather component reports its request state to the main assessment.
   const [weather, setWeather] = useState(null);
   const [assessmentId, setAssessmentId] = useState(0);
-
+  const [editingScenario, setEditingScenario] = useState(null);
   const [tripForm, setTripForm] = useState({
     origin: "",
     destination: "",
@@ -135,9 +135,10 @@ function App() {
           )}
           {!tripLoading && !tripError && (
             <UserDashboard
-              accountSaved
-              key={`${user.id}-${savedScenario?.savedAt ?? 'empty'}`}
-              savedTrip={savedScenario}
+               accountSaved
+               key={`${user.id}-${savedScenario?.savedAt ?? 'empty'}`}
+               savedTrip={savedScenario}
+               onEditTrip={setEditingScenario}
             />
           )}
         </>
@@ -297,6 +298,7 @@ function App() {
         showResults={showResults}
         hasInvalidInput={hasInvalidInput}
         savedScenario={savedScenario}
+        editingScenario={editingScenario}
         key={user?.id ?? 'guest'}
         reportContext={{ tripForm, transportationTotal, lodgingTotal, estimatedTotal,
           estimatedTravelTime, maxTravelTime, analysis, weather }}
