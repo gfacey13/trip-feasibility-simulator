@@ -1,3 +1,5 @@
+import HotelRoomBreakdown from "./HotelRoomBreakdown";
+
 function TripSummary({
   tripForm,
   transportationTotal,
@@ -36,14 +38,11 @@ function TripSummary({
         <>
           <p>
             Transportation uses your entered price. Lodging uses a LiteAPI
-            sandbox test estimate for one room for the whole stay.
+            sandbox test estimate for the selected rooms for the whole stay.
             This is not a booking quote.
           </p>
           <p><strong>Hotel:</strong> {selectedHotel.hotelName}</p>
-          <p>
-            <strong>Room arrangement:</strong> All travelers are adults
-            sharing one room.
-          </p>
+          <HotelRoomBreakdown rooms={selectedHotel.rooms} nights={selectedHotel.nights} />
           <p>
             <strong>Hotel Base Total:</strong> $
             {money(selectedHotel.baseTotal)} USD

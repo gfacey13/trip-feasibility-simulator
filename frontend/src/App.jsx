@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import TravelTime from "./TravelTime";
 import TripInputForm from "./TripInputForm";
@@ -7,10 +7,11 @@ import FeasibilityAnalysis from "./FeasibilityAnalysis";
 import WeatherDelayChecker from "./WeatherDelayChecker";
 import TripSummary from "./TripSummary";
 import HotelPricing from "./HotelPricing";
+import { countRoomTravelers, roomsForTravelers } from "./services/hotelRooms";
 import UserDashboard from "./UserDashboard";
 import AccountPanel from "./AccountPanel";
 import { evaluateFeasibility } from "./services/evaluateFeasibility";
-import { readSavedTrip } from "./services/savedTripStorage";
+import { useSavedTrip } from "./services/useSavedTrip";
 import { supabase } from "./services/supabaseClient";
 
 const speeds = {
@@ -32,18 +33,15 @@ function validNumber(value, minimum) {
 function App() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(!supabase);
-  const [savedScenario, setSavedScenario] = useState(null);
-  const [tripError, setTripError] = useState("");
-  const [tripLoading, setTripLoading] = useState(false);
-  const [tripBusy, setTripBusy] = useState(false);
-
-  const currentUserId = useRef(null);
-  const requestVersion = useRef(0);
-  const mutationBusy = useRef(false);
+  const {
+    savedScenario, loading: tripLoading, error: tripError,
+    retryLoad, saveTrip, deleteTrip,
+  } = useSavedTrip(user);
 
   const [transportationCost, setTransportationCost] = useState("");
   const [lodgingCost, setLodgingCost] = useState("");
   const [selectedHotel, setSelectedHotel] = useState(null);
+  const [hotelRooms, setHotelRooms] = useState(() => roomsForTravelers(""));
   const [showResults, setShowResults] = useState(false);
   const [distance, setDistance] = useState("");
   const [maxTravelTime, setMaxTravelTime] = useState("");
@@ -62,170 +60,12 @@ function App() {
 
   useEffect(() => {
     if (!supabase) return;
-
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      const nextUser = session?.user ?? null;
-      const nextId = nextUser?.id ?? null;
-
-      if (currentUserId.current !== nextId) {
-        currentUserId.current = nextId;
-        requestVersion.current += 1;
-        mutationBusy.current = false;
-
-        setSavedScenario(null);
-        setTripError("");
-        setTripBusy(false);
-        setTripLoading(Boolean(nextId));
-      }
-
-      setUser(nextUser);
+      setUser(session?.user ?? null);
       setAuthReady(true);
     });
-
-    return () => {
-      requestVersion.current += 1;
-      data.subscription.unsubscribe();
-    };
+    return () => data.subscription.unsubscribe();
   }, []);
-
-  const userId = user?.id ?? null;
-
-  useEffect(() => {
-    if (!supabase || !userId) return;
-
-    let active = true;
-    const version = ++requestVersion.current;
-
-    async function loadPreferredTrip() {
-      try {
-        const { data, error } = await supabase
-          .from("preferred_trips")
-          .select("scenario")
-          .eq("user_id", userId)
-          .maybeSingle();
-
-        if (error) throw error;
-
-        let trip = null;
-
-        if (data) {
-          trip = readSavedTrip({
-            getItem: () => JSON.stringify(data.scenario),
-          });
-
-          if (!trip) {
-            throw new Error("Invalid saved trip.");
-          }
-        }
-
-        if (
-          active &&
-          version === requestVersion.current &&
-          currentUserId.current === userId
-        ) {
-          setSavedScenario(trip);
-        }
-      } catch {
-        if (
-          active &&
-          version === requestVersion.current &&
-          currentUserId.current === userId
-        ) {
-          setTripError(
-            "Your saved trip could not be loaded. Refresh the page to try again."
-          );
-        }
-      } finally {
-        if (
-          active &&
-          version === requestVersion.current &&
-          currentUserId.current === userId
-        ) {
-          setTripLoading(false);
-        }
-      }
-    }
-
-    loadPreferredTrip();
-
-    return () => {
-      active = false;
-    };
-  }, [userId]);
-
-  async function changePreferredTrip(nextTrip) {
-    const ownerId = user?.id;
-
-    if (!supabase || !ownerId || currentUserId.current !== ownerId) {
-      throw new Error("Please log in to manage your saved trip.");
-    }
-
-    if (tripLoading || mutationBusy.current) {
-      throw new Error("Please wait for the current trip request to finish.");
-    }
-
-    let validatedTrip = null;
-
-    if (nextTrip !== null) {
-      validatedTrip = readSavedTrip({
-        getItem: () => JSON.stringify(nextTrip),
-      });
-
-      if (!validatedTrip) {
-        throw new Error("Enter valid trip details before saving.");
-      }
-    }
-
-    mutationBusy.current = true;
-    setTripBusy(true);
-    setTripError("");
-    const version = ++requestVersion.current;
-
-    try {
-      const { data: account, error: accountError } =
-        await supabase.auth.getUser();
-
-      if (
-        accountError ||
-        account.user?.id !== ownerId ||
-        currentUserId.current !== ownerId ||
-        version !== requestVersion.current
-      ) {
-        throw new Error("Your account changed. Please try again.");
-      }
-
-      if (validatedTrip === null) {
-        const { error } = await supabase
-          .from("preferred_trips")
-          .delete()
-          .eq("user_id", ownerId);
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("preferred_trips")
-          .upsert(
-            { user_id: ownerId, scenario: validatedTrip },
-            { onConflict: "user_id" }
-          );
-
-        if (error) throw error;
-      }
-
-      // Ignore responses belonging to an earlier account or request.
-      if (
-        version === requestVersion.current &&
-        currentUserId.current === ownerId
-      ) {
-        setSavedScenario(validatedTrip);
-      }
-    } finally {
-      if (version === requestVersion.current) {
-        mutationBusy.current = false;
-        setTripBusy(false);
-      }
-    }
-  }
 
   const hasDates = Boolean(tripForm.startDate && tripForm.endDate);
   const startTime = Date.parse(`${tripForm.startDate}T00:00:00Z`);
@@ -304,7 +144,7 @@ function App() {
       <h1>Trip Feasibility Simulator</h1>
 
       {authReady ? (
-        <AccountPanel user={user} />
+        <AccountPanel key={user?.id ?? "guest"} user={user} />
       ) : (
         <p role="status">Checking your account...</p>
       )}
@@ -314,7 +154,7 @@ function App() {
           <>
             {tripError && (
               <p className="error-message" role="alert">
-                {tripError}
+                {tripError} <button type="button" onClick={retryLoad}>Retry</button>
               </p>
             )}
 
@@ -322,6 +162,7 @@ function App() {
               <p role="status">Loading your saved trip...</p>
             ) : tripError ? null : (
               <UserDashboard
+                accountSaved
                 key={`${user.id}-${savedScenario?.savedAt || "empty"}`}
                 savedTrip={savedScenario}
               />
@@ -336,7 +177,11 @@ function App() {
       )}
 
       <TripInputForm
+        form={tripForm}
         onFormChange={(updatedForm) => {
+          if (updatedForm.travelers !== tripForm.travelers) {
+            setHotelRooms(roomsForTravelers(updatedForm.travelers));
+          }
           setTripForm(updatedForm);
           setSelectedHotel(null);
           setShowResults(false);
@@ -398,9 +243,20 @@ function App() {
       </div>
 
       <HotelPricing
-        key={JSON.stringify(tripForm)}
+        key={JSON.stringify({ ...tripForm, travelers: undefined })}
         tripForm={tripForm}
         selectedHotel={selectedHotel}
+        rooms={hotelRooms}
+        onRoomsChange={(nextRooms) => {
+          setHotelRooms(nextRooms);
+          const travelers = countRoomTravelers(nextRooms);
+          if (travelers !== null) {
+            setTripForm((current) => ({ ...current, travelers: String(travelers) }));
+          }
+          setSelectedHotel(null);
+          setShowResults(false);
+          setWeather(null);
+        }}
         onSelect={selectHotel}
       />
 
@@ -511,8 +367,13 @@ function App() {
         showResults={showResults}
         hasInvalidInput={hasInvalidInput}
         savedScenario={savedScenario}
-        tripBusy={tripBusy || tripLoading}
-        onSavedScenarioChange={changePreferredTrip}
+        tripBusy={!authReady || tripLoading || Boolean(tripError)}
+        onSaveTrip={saveTrip}
+        onDeleteTrip={deleteTrip}
+        reportContext={{
+          tripForm, transportationTotal, lodgingTotal, estimatedTotal,
+          estimatedTravelTime, maxTravelTime, analysis, weather,
+        }}
         selectedHotel={selectedHotel}
       />
     </main>

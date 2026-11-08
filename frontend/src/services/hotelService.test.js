@@ -189,3 +189,41 @@ describe("getHotelRates", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+const familyRooms = [{ adults: 2, children: [7] }, { adults: 1, children: [] }];
+function familyResponse() {
+  return {
+    ...validResponse(), roomCount: 2, nights: 2,
+    rates: [{ hotelName: 'Family Hotel', total: 520, baseTotal: 500, additionalFees: 20, currency: 'USD',
+      rooms: [
+        { roomNumber: 1, roomName: 'Family Room', adults: 2, children: [7], total: 210, baseTotal: 200, additionalFees: 10 },
+        { roomNumber: 2, roomName: 'Single Room', adults: 1, children: [], total: 310, baseTotal: 300, additionalFees: 10 },
+      ] }],
+  };
+}
+describe('multi-room hotel pricing', () => {
+  it('sends children ages per room and verifies complete returned prices', async () => {
+    respondWith(familyResponse());
+    const result = await getHotelRates({ ...input, travelers: '4', occupancies: familyRooms });
+    expect(JSON.parse(fetch.mock.calls[0][1].body).occupancies).toEqual(familyRooms);
+    expect(result.rates[0].total).toBe(520);
+    expect(result.rates[0].rooms[0].averageNightly).toBe(105);
+    expect(result.rates[0].rooms[1].averageNightly).toBe(155);
+  });
+  it('rejects mismatched traveler counts before calling the backend', async () => {
+    await expect(getHotelRates({ ...input, travelers: '3', occupancies: familyRooms })).rejects.toThrow('Assign all travelers');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each([
+    ['missing room', (body) => body.rates[0].rooms.pop()],
+    ['wrong child age', (body) => { body.rates[0].rooms[0].children = [8]; }],
+    ['wrong stay length', (body) => { body.nights = 3; }],
+    ['wrong room count', (body) => { body.roomCount = 1; }],
+    ['inconsistent room fees', (body) => { body.rates[0].rooms[0].additionalFees = 20; }],
+    ['inconsistent aggregate fees', (body) => { body.rates[0].baseTotal = 480; body.rates[0].additionalFees = 40; }],
+  ])('rejects %s', async (_name, modify) => {
+    const body = familyResponse();
+    modify(body);
+    respondWith(body);
+    await expect(getHotelRates({ ...input, travelers: '4', occupancies: familyRooms })).rejects.toThrow();
+  });
+});

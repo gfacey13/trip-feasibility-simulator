@@ -1,3 +1,5 @@
+import { normalizeHotelRooms, validRoomOccupancies } from "./hotelRooms";
+
 export async function getHotelRates(
   {
     destination,
@@ -7,6 +9,7 @@ export async function getHotelRates(
     countryCode,
     guestNationality,
     hotelSingleRoomAdults,
+    occupancies,
   },
   signal
 ) {
@@ -18,6 +21,12 @@ export async function getHotelRates(
     );
   }
 
+  const requestedRooms = occupancies;
+  if (requestedRooms !== undefined && (!validRoomOccupancies(requestedRooms)
+    || requestedRooms.reduce((sum, room) => sum + room.adults + room.children.length, 0) !== Number(travelers))) {
+    throw new Error("Assign all travelers to rooms, with at least one adult per room and valid children's ages.");
+  }
+  const nights = Math.round((Date.parse(endDate) - Date.parse(startDate)) / 86400000);
   const controller = new AbortController();
   let timedOut = false;
   const cancel = () => controller.abort();
@@ -47,6 +56,7 @@ export async function getHotelRates(
         countryCode,
         guestNationality,
         hotelSingleRoomAdults,
+        occupancies,
       }),
       signal: controller.signal,
     });
@@ -94,13 +104,26 @@ export async function getHotelRates(
       result.mode !== "sandbox" ||
       result.source !== "LiteAPI" ||
       result.priceBasis !== "whole-stay" ||
-      result.roomCount !== 1
+      result.roomCount !== (requestedRooms?.length ?? 1)
     ) {
       throw new Error(
         "No usable hotel test prices were returned. Enter lodging costs manually."
       );
     }
 
+    if (requestedRooms) {
+      if (result.nights !== nights) throw new Error("The returned hotel stay dates do not match your search.");
+      for (const rate of result.rates) {
+        const rooms = normalizeHotelRooms(rate.rooms, nights, rate.total, rate.baseTotal, rate.additionalFees);
+        if (!rooms || rooms.some((room, index) => room.adults !== requestedRooms[index].adults
+          || JSON.stringify([...room.children].sort((a, b) => a - b))
+            !== JSON.stringify([...requestedRooms[index].children].sort((a, b) => a - b)))) {
+          throw new Error("The hotel prices do not match your room arrangement. Try another search.");
+        }
+        rate.rooms = rooms;
+        rate.nights = nights;
+      }
+    }
     return result;
   } catch (error) {
     if (signal?.aborted) {

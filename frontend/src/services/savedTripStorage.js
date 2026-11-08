@@ -1,3 +1,5 @@
+import { normalizeHotelRooms } from "./hotelRooms";
+
 // Local device storage is a prototype, not authenticated account persistence.
 
 export function normalizePricing(pricing) {
@@ -15,7 +17,28 @@ export function normalizePricing(pricing) {
       return { source: "unknown" };
     }
 
+    const feeDetails = {};
+    if (pricing.baseTotal !== undefined || pricing.additionalFees !== undefined) {
+      if (!Number.isFinite(pricing.baseTotal) || pricing.baseTotal <= 0
+          || !Number.isFinite(pricing.additionalFees) || pricing.additionalFees < 0
+          || Math.abs(pricing.lodgingTotal - pricing.baseTotal - pricing.additionalFees) >= 0.011) {
+        return { source: "unknown" };
+      }
+      feeDetails.baseTotal = pricing.baseTotal;
+      feeDetails.additionalFees = pricing.additionalFees;
+    }
+
+    const roomDetails = {};
+    if (pricing.rooms !== undefined || pricing.nights !== undefined) {
+      const rooms = normalizeHotelRooms(pricing.rooms, pricing.nights, pricing.lodgingTotal, pricing.baseTotal, pricing.additionalFees);
+      if (!rooms || pricing.roomCount !== rooms.length) return { source: "unknown" };
+      roomDetails.rooms = rooms;
+      roomDetails.nights = pricing.nights;
+      roomDetails.roomCount = rooms.length;
+    }
     return {
+      ...roomDetails,
+      ...feeDetails,
       source: "liteapi-sandbox",
       hotelName: pricing.hotelName.trim(),
       lodgingTotal: pricing.lodgingTotal,
@@ -36,6 +59,7 @@ export function pricingLabel(pricing) {
     return (
       `LiteAPI sandbox — ${checked.hotelName}; ` +
       `$${checked.lodgingTotal.toFixed(2)} USD lodging for the whole stay. ` +
+      (checked.rooms ? `${checked.roomCount} ${checked.roomCount === 1 ? "room" : "rooms"} for ${checked.nights} nights. ` : "") +
       "Transportation is user-entered. Not a booking quote."
     );
   }

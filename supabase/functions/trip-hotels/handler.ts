@@ -1,11 +1,22 @@
 type JsonObject = Record<string, unknown>;
 
+type Occupancy = { adults: number; children: number[] };
+type RoomPrice = Occupancy & {
+  roomNumber: number;
+  roomName: string;
+  total: number;
+  baseTotal: number;
+  additionalFees: number;
+  averageNightly: number;
+};
 type HotelRate = {
   hotelName: string;
   total: number;
   currency: "USD";
   baseTotal: number;
   additionalFees: number;
+  nights: number;
+  rooms: RoomPrice[];
 };
 
 const corsHeaders = {
@@ -80,143 +91,151 @@ function usdCents(value: unknown): number | null {
   return Number.isSafeInteger(cents) ? cents : null;
 }
 
-// Exported so tests can exercise actual provider-response parsing.
+function validOccupancies(value: unknown): value is Occupancy[] {
+  return Array.isArray(value) && value.length >= 1 && value.length <= 8 &&
+    value.every((entry) => {
+      const room = object(entry);
+      return room !== null && Number.isSafeInteger(room.adults) &&
+        Number(room.adults) >= 1 && Number(room.adults) <= 8 &&
+        Array.isArray(room.children) &&
+        Number(room.adults) + room.children.length <= 8 &&
+        room.children.every((age) =>
+          Number.isSafeInteger(age) && age >= 0 && age <= 17
+        );
+    });
+}
+
+function sameChildren(actual: unknown, expected: number[]): boolean {
+  if (expected.length === 0) {
+    return actual === undefined ||
+      (Array.isArray(actual) && actual.length === 0);
+  }
+  return Array.isArray(actual) && actual.length === expected.length &&
+    [...actual].sort((a, b) => a - b).every((age, index) =>
+      age === [...expected].sort((a, b) => a - b)[index]
+    );
+}
+
+function roomPrice(
+  rate: JsonObject,
+  occupancy: Occupancy,
+  index: number,
+  nights: number,
+): RoomPrice | null {
+  const retail = object(rate.retailRate);
+  if (!retail || !Array.isArray(retail.total) || retail.total.length !== 1) {
+    return null;
+  }
+  const baseCents = usdCents(retail.total[0]);
+  if (baseCents === null || baseCents <= 0) return null;
+  const fees = retail.taxesAndFees;
+  if (fees !== null && !Array.isArray(fees)) return null;
+  let feeCents = 0;
+  for (const entry of fees ?? []) {
+    const fee = object(entry);
+    if (!fee || typeof fee.included !== "boolean") return null;
+    if (fee.included) continue;
+    const amount = usdCents(fee);
+    if (amount === null) return null;
+    feeCents += amount;
+  }
+  const totalCents = baseCents + feeCents;
+  if (!Number.isSafeInteger(totalCents)) return null;
+  return {
+    roomNumber: index + 1,
+    roomName: typeof rate.name === "string" && rate.name.trim()
+      ? rate.name.trim()
+      : `Room ${index + 1}`,
+    adults: occupancy.adults,
+    children: [...occupancy.children],
+    total: totalCents / 100,
+    baseTotal: baseCents / 100,
+    additionalFees: feeCents / 100,
+    averageNightly: Math.round(totalCents / nights) / 100,
+  };
+}
+
+// Choose a complete multi-room offer. Never assemble rooms from separate offers.
 export function normalizeHotelRates(
   payload: unknown,
-  travelers: number,
+  requested: Occupancy[] | number,
+  nights = 1,
 ): HotelRate[] {
+  const occupancies = typeof requested === "number"
+    ? [{ adults: requested, children: [] }]
+    : requested;
   const result = object(payload);
-
   if (
-    !result ||
-    result.sandbox !== true ||
-    !Array.isArray(result.data) ||
+    !validOccupancies(occupancies) || !Number.isSafeInteger(nights) ||
+    nights < 1 ||
+    !result || result.sandbox !== true || !Array.isArray(result.data) ||
     !Array.isArray(result.hotels)
-  ) {
-    return [];
-  }
-
-  const hotelNames = new Map<string, string>();
-
+  ) return [];
+  const names = new Map<string, string>();
   for (const entry of result.hotels) {
     const hotel = object(entry);
-
     if (
-      hotel &&
-      typeof hotel.id === "string" &&
-      typeof hotel.name === "string" &&
+      hotel && typeof hotel.id === "string" && typeof hotel.name === "string" &&
       hotel.name.trim()
     ) {
-      hotelNames.set(hotel.id, hotel.name.trim());
+      names.set(hotel.id, hotel.name.trim());
     }
   }
-
   const prices: HotelRate[] = [];
-
   for (const entry of result.data) {
     const hotel = object(entry);
-
     if (
-      !hotel ||
-      typeof hotel.hotelId !== "string" ||
+      !hotel || typeof hotel.hotelId !== "string" ||
       !Array.isArray(hotel.roomTypes)
-    ) {
-      continue;
-    }
-
-    const hotelName = hotelNames.get(hotel.hotelId);
+    ) continue;
+    const hotelName = names.get(hotel.hotelId);
     if (!hotelName) continue;
-
     let cheapest: HotelRate | null = null;
-
     for (const entry of hotel.roomTypes) {
       const offer = object(entry);
-
-      // This version supports exactly one occupied room.
       if (
-        !offer ||
-        !Array.isArray(offer.rates) ||
-        offer.rates.length !== 1
-      ) {
-        continue;
+        !offer || !Array.isArray(offer.rates) ||
+        offer.rates.length !== occupancies.length
+      ) continue;
+      const available = offer.rates.map(object);
+      const rooms: RoomPrice[] = [];
+      for (const [index, occupancy] of occupancies.entries()) {
+        const match = available.findIndex((rate) =>
+          rate !== null &&
+          rate.adultCount === occupancy.adults &&
+          rate.childCount === occupancy.children.length &&
+          sameChildren(rate.childrenAges, occupancy.children)
+        );
+        if (match === -1) break;
+        const rate = available[match]!;
+        available[match] = null;
+        const room = roomPrice(rate, occupancy, index, nights);
+        if (!room) break;
+        rooms.push(room);
       }
-
-      const rate = object(offer.rates[0]);
-
-      if (
-        !rate ||
-        rate.adultCount !== travelers ||
-        rate.childCount !== 0
-      ) {
-        continue;
-      }
-
-      const retail = object(rate.retailRate);
-
-      if (
-        !retail ||
-        !Array.isArray(retail.total) ||
-        retail.total.length !== 1
-      ) {
-        continue;
-      }
-
-      const baseCents = usdCents(retail.total[0]);
-      if (baseCents === null || baseCents <= 0) continue;
-
-      const fees = retail.taxesAndFees;
-
-      // LiteAPI documents null as no excluded fees.
-      // A missing or malformed field is treated as unknown.
-      if (fees !== null && !Array.isArray(fees)) continue;
-
-      let feeCents = 0;
-      let usable = true;
-
-      if (Array.isArray(fees)) {
-        for (const entry of fees) {
-          const fee = object(entry);
-
-          if (!fee || typeof fee.included !== "boolean") {
-            usable = false;
-            break;
-          }
-
-          // Included fees are already part of the retail total.
-          if (fee.included) continue;
-
-          const amount = usdCents(fee);
-
-          // Do not hide unpriced fees or convert currencies by guessing.
-          if (amount === null) {
-            usable = false;
-            break;
-          }
-
-          feeCents += amount;
-        }
-      }
-
-      const totalCents = baseCents + feeCents;
-
-      if (!usable || !Number.isSafeInteger(totalCents)) continue;
-
+      if (rooms.length !== occupancies.length) continue;
+      const baseCents = rooms.reduce(
+        (sum, room) => sum + Math.round(room.baseTotal * 100),
+        0,
+      );
+      const feeCents = rooms.reduce(
+        (sum, room) => sum + Math.round(room.additionalFees * 100),
+        0,
+      );
+      if (!Number.isSafeInteger(baseCents + feeCents)) continue;
       const candidate: HotelRate = {
         hotelName,
-        total: totalCents / 100,
+        total: (baseCents + feeCents) / 100,
         currency: "USD",
         baseTotal: baseCents / 100,
         additionalFees: feeCents / 100,
+        nights,
+        rooms,
       };
-
-      if (!cheapest || candidate.total < cheapest.total) {
-        cheapest = candidate;
-      }
+      if (!cheapest || candidate.total < cheapest.total) cheapest = candidate;
     }
-
     if (cheapest) prices.push(cheapest);
   }
-
   return prices.sort((a, b) => a.total - b.total).slice(0, 10);
 }
 
@@ -265,22 +284,25 @@ export async function handleTripHotels(
     );
   }
 
-  if (input.hotelSingleRoomAdults !== true) {
+  const occupancies = input.occupancies ?? (
+    input.hotelSingleRoomAdults === true && Number.isSafeInteger(travelers)
+      ? [{ adults: travelers, children: [] }]
+      : null
+  );
+  if (!validOccupancies(occupancies)) {
     return unavailable(
       400,
-      "Confirm all travelers are adults sharing one room, or use manual lodging.",
+      "Enter 1–8 rooms, each with at least one adult, up to 8 guests, and children's ages from 0 to 17.",
     );
   }
-
-  if (
-    typeof travelers !== "number" ||
-    !Number.isSafeInteger(travelers) ||
-    travelers < 1 ||
-    travelers > 8
-  ) {
+  const guestCount = occupancies.reduce(
+    (sum, room) => sum + room.adults + room.children.length,
+    0,
+  );
+  if (guestCount !== travelers) {
     return unavailable(
       400,
-      "Hotel searches support 1–8 adults in one room. Otherwise use manual lodging.",
+      "The guests assigned to rooms must match the trip's traveler count.",
     );
   }
 
@@ -337,7 +359,7 @@ export async function handleTripHotels(
           checkin: startDate,
           checkout: endDate,
           currency: "USD",
-          occupancies: [{ adults: travelers, children: [] }],
+          occupancies,
           includeHotelData: true,
           maxRatesPerHotel: 5,
           limit: 10,
@@ -362,7 +384,10 @@ export async function handleTripHotels(
     }
 
     const payload: unknown = await response.json();
-    const rates = normalizeHotelRates(payload, travelers);
+    const nights = Math.round(
+      (Date.parse(endDate) - Date.parse(startDate)) / 86400000,
+    );
+    const rates = normalizeHotelRates(payload, occupancies, nights);
 
     if (rates.length === 0) {
       return unavailable(
@@ -376,7 +401,8 @@ export async function handleTripHotels(
       mode: "sandbox",
       source: "LiteAPI",
       priceBasis: "whole-stay",
-      roomCount: 1,
+      roomCount: occupancies.length,
+      nights,
       rates,
     });
   } catch {

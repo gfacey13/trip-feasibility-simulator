@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { buildStoredReport } from "./services/buildStoredReport";
 import {
   normalizePricing,
   pricingLabel,
@@ -33,7 +34,9 @@ function ScenarioComparison({
   calculationId,
   savedScenario,
   tripBusy,
-  onSavedScenarioChange,
+  onSaveTrip,
+  onDeleteTrip,
+  reportContext,
   selectedHotel,
 }) {
   const [scenarios, setScenarios] = useState([
@@ -53,6 +56,7 @@ function ScenarioComparison({
 
   const [preferredScenario, setPreferredScenario] = useState(null);
   const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [lastCalculationId, setLastCalculationId] = useState(null);
 
   if (
@@ -77,6 +81,10 @@ function ScenarioComparison({
             source: "liteapi-sandbox",
             hotelName: selectedHotel.hotelName,
             lodgingTotal: selectedHotel.total,
+            baseTotal: selectedHotel.baseTotal,
+            additionalFees: selectedHotel.additionalFees,
+            ...(selectedHotel.rooms ? { rooms: selectedHotel.rooms, nights: selectedHotel.nights,
+              roomCount: selectedHotel.rooms.length } : {}),
           })
         : { source: "manual" },
     };
@@ -150,7 +158,7 @@ function ScenarioComparison({
   }
 
   async function savePreferredScenario() {
-    if (tripBusy) return;
+    if (tripBusy || saving) return;
 
     if (!user?.id) {
       setSaveError("Please log in to save your preferred trip.");
@@ -192,6 +200,7 @@ function ScenarioComparison({
     const tripToSave = {
       ...selected,
       pricing: normalizePricing(selected.pricing),
+      report: buildStoredReport(selected, reportContext),
       budgetResult:
         Number(selected.cost) <= Number(selected.budget)
           ? "Within budget"
@@ -199,13 +208,16 @@ function ScenarioComparison({
       savedAt: new Date().toISOString(),
     };
 
+    setSaving(true);
     try {
-      await onSavedScenarioChange(tripToSave);
+      await onSaveTrip(tripToSave);
       setSaveError("");
     } catch {
       setSaveError(
         "Your trip could not be saved to your account. Please try again."
       );
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -215,13 +227,16 @@ function ScenarioComparison({
       return;
     }
 
-    if (tripBusy) return;
+    if (tripBusy || saving) return;
 
+    setSaving(true);
     try {
-      await onSavedScenarioChange(null);
+      await onDeleteTrip();
       setSaveError("");
     } catch {
       setSaveError("The saved trip could not be deleted. Please try again.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -371,7 +386,7 @@ function ScenarioComparison({
           </p>
           <button
             type="button"
-            disabled={tripBusy}
+            disabled={tripBusy || saving}
             onClick={savePreferredScenario}
           >
             {tripBusy ? "Please wait..." : "Save Preferred Scenario"}
@@ -389,7 +404,7 @@ function ScenarioComparison({
           <p>Travel Time: {savedScenario.travelTime} hours</p>
           <button
             type="button"
-            disabled={tripBusy}
+            disabled={tripBusy || saving}
             onClick={deleteSavedScenario}
           >
             Delete Saved Scenario
