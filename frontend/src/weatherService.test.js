@@ -1,109 +1,140 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getTripWeather } from "./services/weatherService";
 import { evaluateFeasibility } from "./services/evaluateFeasibility";
 
-// Mock fetch so tests do not depend on today's forecast or network access.
-afterEach(() => vi.unstubAllGlobals());
-const location = {
-  results: [{
-    name: "Boston", admin1: "Massachusetts", country: "United States",
-    latitude: 42.36, longitude: -71.06, timezone: "America/New_York",
-  }],
-};
-function dailyForecast(code = 0) {
-  return { daily: {
-    time: ["2026-10-27", "2026-10-28", "2026-10-29"],
-    weather_code: [code, code, code],
-    temperature_2m_max: [52, 57, 58],
-    precipitation_probability_max: [4, 0, 5],
-    wind_speed_10m_max: [8.8, 7.9, 10],
-  } };
+const apiUrl = "https://weather.example.test/trip-weather";
+const destination = "Boston, Massachusetts";
+const startDate = "2026-10-27";
+const endDate = "2026-10-28";
+
+const getWeather = (signal) =>
+  getTripWeather(destination, startDate, endDate, signal);
+
+function forecast(weatherCode = 0) {
+  return {
+    status: "retrieved",
+    source: "Open-Meteo",
+    location: "Boston, Massachusetts, United States",
+    days: [startDate, endDate].map((date) => ({
+      date,
+      weatherCode,
+      temperatureF: 57,
+      precipitationChance: 4,
+      windMph: 8,
+    })),
+  };
 }
-const response = (data, ok = true) => ({ ok, json: async () => data });
-function mockApi(data = dailyForecast()) {
-  const fetchMock = vi.fn()
-    .mockResolvedValueOnce(response(location))
-    .mockResolvedValueOnce(response(data));
+
+function assess(weather) {
+  return evaluateFeasibility({
+    estimatedTotal: 160,
+    budget: 1000,
+    travelTime: 1.3,
+    maxTravelTime: 8,
+    weather,
+  });
+}
+
+let fetchMock;
+
+beforeEach(() => {
+  vi.stubEnv("VITE_WEATHER_API_URL", apiUrl);
+  fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
-}
-const getWeather = (start = "2026-10-27", end = "2026-10-28", signal) =>
-  getTripWeather("Boston, Massachusetts", start, end, signal);
-const assess = (weather) => evaluateFeasibility({
-  estimatedTotal: 160, budget: 1000, travelTime: 1.3, maxTravelTime: 8, weather,
 });
 
-describe("weather API behavior", () => {
-  it("returns only trip dates and requests destination timezone and units", async () => {
-    const fetchMock = mockApi();
-    const data = await getWeather();
-    expect(data.days.map((day) => day.date)).toEqual(["2026-10-27", "2026-10-28"]);
-    expect(data.location).toBe("Boston, Massachusetts, United States");
-    const params = new URL(fetchMock.mock.calls[1][0]).searchParams;
-    expect(params.get("timezone")).toBe("America/New_York");
-    expect(params.get("temperature_unit")).toBe("fahrenheit");
-    expect(params.get("wind_speed_unit")).toBe("mph");
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
+
+describe("weather backend integration", () => {
+  it("posts the trip once and returns the retrieved forecast", async () => {
+    const expected = forecast();
+    const controller = new AbortController();
+    fetchMock.mockResolvedValue(Response.json(expected));
+
+    const data = await getWeather(controller.signal);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(apiUrl);
+    expect(options.method).toBe("POST");
+    expect(options.headers["Content-Type"]).toBe("application/json");
+    expect(options.signal).toBe(controller.signal);
+    expect(JSON.parse(options.body)).toEqual({ destination, startDate, endDate });
+    expect(data).toEqual(expected);
     expect(assess({ status: "success", data }).status).toBe("Feasible");
   });
+
   it.each([
-    ["2026-11-20", "2026-11-21"],
-    ["2026-10-26", "2026-10-28"],
-    ["2026-10-28", "2026-10-30"],
-  ])("rejects trips without full forecast coverage: %s to %s", async (start, end) => {
-    mockApi();
-    await expect(getWeather(start, end)).rejects.toThrow("full trip forecast is unavailable");
+    [404, "Destination not found. Try a city name."],
+    [422, "The forecast does not cover the full trip."],
+    [502, "Weather measurements are incomplete for 2026-10-27."],
+    [504, "The forecast request timed out. Please try again."],
+  ])("shows the backend explanation for HTTP %i", async (status, message) => {
+    fetchMock.mockResolvedValue(
+      Response.json({ status: "unavailable", message }, { status })
+    );
+
+    await expect(getWeather()).rejects.toThrow(message);
   });
-  it("reports an unknown destination", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({})));
-    await expect(getWeather()).rejects.toThrow("Destination not found");
+
+  it("reports a network failure when the backend cannot be reached", async () => {
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await expect(getWeather()).rejects.toThrow(
+      "The weather service could not be reached."
+    );
   });
-  it("reports a failed location lookup", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({}, false)));
-    await expect(getWeather()).rejects.toThrow("Could not look up");
-  });
-  it("reports a failed forecast request", async () => {
-    const fetchMock = mockApi();
-    fetchMock.mockReset()
-      .mockResolvedValueOnce(response(location))
-      .mockResolvedValueOnce(response({}, false));
-    await expect(getWeather()).rejects.toThrow("Could not load");
-  });
-  it.each([{}, { daily: { time: [] } }])("reports absent forecast dates: %j", async (data) => {
-    mockApi(data);
-    await expect(getWeather()).rejects.toThrow("No forecast is available");
-  });
-  it("propagates network failures for the component to display", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Network unavailable")));
-    await expect(getWeather()).rejects.toThrow("Network unavailable");
-  });
-  it("passes the cancellation signal to both API requests", async () => {
-    const fetchMock = mockApi();
-    const controller = new AbortController();
-    await getWeather("2026-10-27", "2026-10-28", controller.signal);
-    expect(fetchMock.mock.calls.every((call) => call[1].signal === controller.signal)).toBe(true);
-  });
-  it("preserves cancellation errors for the component to ignore", async () => {
+
+  it("preserves cancellation so an old trip cannot replace the current one", async () => {
     const controller = new AbortController();
     controller.abort();
-    const error = new Error("Request aborted");
-    error.name = "AbortError";
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(error));
-    await expect(getWeather("2026-10-27", "2026-10-28", controller.signal)).rejects.toBe(error);
+    fetchMock.mockRejectedValue(controller.signal.reason);
+
+    await expect(getWeather(controller.signal)).rejects.toBe(controller.signal.reason);
   });
+
+  it("reports an unreadable response", async () => {
+    fetchMock.mockResolvedValue(new Response("not JSON"));
+
+    await expect(getWeather()).rejects.toThrow("unreadable response");
+  });
+
+  it("rejects a retrieved forecast with no days", async () => {
+    fetchMock.mockResolvedValue(Response.json({ ...forecast(), days: [] }));
+
+    await expect(getWeather()).rejects.toThrow("No forecast days were returned.");
+  });
+
+  it("explains when the backend URL is missing", async () => {
+    vi.stubEnv("VITE_WEATHER_API_URL", "");
+
+    await expect(getWeather()).rejects.toThrow("has not been configured");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it.each([[61, "Moderate"], [95, "High"], [66, "High"]])(
-    "connects forecast code %i to a %s weather warning", async (code, severity) => {
-      mockApi(dailyForecast(code));
+    "connects weather code %i to a %s warning",
+    async (code, severity) => {
+      fetchMock.mockResolvedValue(Response.json(forecast(code)));
+
       const data = await getWeather();
       const result = assess({ status: "success", data });
+
       expect(result.status).toBe("Feasible with weather warnings");
       expect(result.reasons[0]).toContain(severity);
-    },
+    }
   );
-  it("keeps missing measurements incomplete rather than low risk", async () => {
-    const apiData = dailyForecast();
-    apiData.daily.wind_speed_10m_max[0] = null;
-    mockApi(apiData);
+
+  it("does not treat missing wind measurements as low risk", async () => {
+    const partial = forecast();
+    partial.days[0].windMph = null;
+    fetchMock.mockResolvedValue(Response.json(partial));
+
     const data = await getWeather();
+
     expect(assess({ status: "success", data }).status).toBe("Assessment incomplete");
   });
 });

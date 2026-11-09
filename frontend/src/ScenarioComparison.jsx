@@ -1,5 +1,28 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { buildStoredReport } from "./services/buildStoredReport";
+import {
+  normalizePricing,
+  pricingLabel,
+} from "./services/savedTripStorage";
+
+const fields = [
+  ["origin", "Origin", "text"],
+  ["destination", "Destination", "text"],
+  ["startDate", "Start Date", "date"],
+  ["endDate", "End Date", "date"],
+  ["cost", "Estimated Cost ($)", "number"],
+  ["travelTime", "Travel Time (hours)", "number"],
+  ["budget", "Budget ($)", "number"],
+];
+
+function validNumber(value, minimum) {
+  return (
+    value != null &&
+    String(value).trim() !== "" &&
+    Number.isFinite(Number(value)) &&
+    Number(value) >= minimum
+  );
+}
 
 function ScenarioComparison({
   user,
@@ -11,10 +34,11 @@ function ScenarioComparison({
   calculationId,
   savedScenario,
   editingScenario,
-  savingDisabled = false,
+  tripBusy,
   onSaveTrip,
   onDeleteTrip,
   reportContext,
+  selectedHotel,
 }) {
   const [scenarios, setScenarios] = useState([
     {
@@ -27,152 +51,156 @@ function ScenarioComparison({
       cost: "",
       travelTime: "",
       budget: "",
+      pricing: { source: "manual" },
     },
   ]);
 
   const [preferredScenario, setPreferredScenario] = useState(null);
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
-  const tripBusy = savingDisabled || saving;
   const [lastCalculationId, setLastCalculationId] = useState(null);
-useEffect(() => {
-  if (!editingScenario) return;
+  const [lastEditRequest, setLastEditRequest] = useState(null);
+  const editChanged = editingScenario && editingScenario.requestId !== lastEditRequest;
 
-  setScenarios([
-    {
-      ...editingScenario,
-      id: 1,
-    },
-  ]);
+  if (editChanged) {
+    setLastEditRequest(editingScenario.requestId);
+    setLastCalculationId(calculationId);
+    setScenarios([{ ...editingScenario.scenario, id: 1 }]);
+    setPreferredScenario(1);
+    setSaveError("");
+  }
 
-  setPreferredScenario(1);
-}, [editingScenario]);
-  // Update Scenario 1 after a new calculation.
   if (
+    !editChanged &&
     showResults &&
     !hasInvalidInput &&
     calculationId !== lastCalculationId
   ) {
     setLastCalculationId(calculationId);
 
-    setScenarios((currentScenarios) =>
-      currentScenarios.map((scenario) =>
-        scenario.id === 1
-          ? {
-              ...scenario,
-              origin: tripForm.origin,
-              destination: tripForm.destination,
-              startDate: tripForm.startDate,
-              endDate: tripForm.endDate,
-              transportation: tripForm.transportation,
-              cost: String(estimatedTotal),
-              travelTime: String(estimatedTravelTime),
-              budget: tripForm.budget,
-            }
-          : scenario
-      )
+    const calculatedScenario = {
+      id: 1,
+      origin: tripForm.origin,
+      destination: tripForm.destination,
+      startDate: tripForm.startDate,
+      endDate: tripForm.endDate,
+      transportation: tripForm.transportation,
+      cost: String(estimatedTotal),
+      travelTime: String(estimatedTravelTime),
+      budget: tripForm.budget,
+      travelers: tripForm.travelers,
+      pricing: selectedHotel
+        ? normalizePricing({
+            source: "liteapi-sandbox",
+            hotelName: selectedHotel.hotelName,
+            lodgingTotal: selectedHotel.total,
+            baseTotal: selectedHotel.baseTotal,
+            additionalFees: selectedHotel.additionalFees,
+            ...(selectedHotel.rooms ? { rooms: selectedHotel.rooms, nights: selectedHotel.nights,
+              roomCount: selectedHotel.rooms.length } : {}),
+          })
+        : { source: "manual" },
+    };
+
+    setScenarios((current) =>
+      current.some((scenario) => scenario.id === 1)
+        ? current.map((scenario) =>
+            scenario.id === 1 ? calculatedScenario : scenario
+          )
+        : [calculatedScenario, ...current]
     );
   }
 
-  const updateScenario = (id, field, value) => {
-    setScenarios((currentScenarios) =>
-      currentScenarios.map((scenario) =>
-        scenario.id === id
-          ? { ...scenario, [field]: value }
-          : scenario
-      )
-    );
-  };
+  function updateScenario(id, field, value) {
+    setScenarios((current) =>
+      current.map((scenario) => {
+        if (scenario.id !== id) return scenario;
 
-  const duplicateScenario = (scenario) => {
-    const newScenario = {
+        let pricing = scenario.pricing;
+
+        const changesPriceContext = [
+          "origin",
+          "destination",
+          "startDate",
+          "endDate",
+          "transportation",
+          "cost",
+        ].includes(field);
+
+        if (changesPriceContext && scenario[field] !== value) {
+          const source = normalizePricing(pricing).source;
+
+          pricing = {
+            source:
+              source === "liteapi-sandbox" || source === "edited-sandbox"
+                ? "edited-sandbox"
+                : "manual",
+          };
+        }
+
+        return { ...scenario, [field]: value, pricing };
+      })
+    );
+
+    setSaveError("");
+  }
+
+  function duplicateScenario(scenario) {
+    const duplicate = {
       ...scenario,
       id: crypto.randomUUID(),
+      pricing: normalizePricing(scenario.pricing),
     };
 
-    setScenarios((currentScenarios) => [
-      ...currentScenarios,
-      newScenario,
-    ]);
-  };
+    setScenarios((current) => [...current, duplicate]);
+  }
 
-  const removeScenario = (id) => {
+  function removeScenario(id) {
     if (scenarios.length === 1) return;
 
-    setScenarios((currentScenarios) =>
-      currentScenarios.filter((scenario) => scenario.id !== id)
+    setScenarios((current) =>
+      current.filter((scenario) => scenario.id !== id)
     );
 
-    if (preferredScenario === id) {
-      setPreferredScenario(null);
-    }
-  };
+    if (preferredScenario === id) setPreferredScenario(null);
+  }
 
-  const selectPreferred = (id) => {
+  function selectPreferred(id) {
     setPreferredScenario(id);
     setSaveError("");
-  };
+  }
 
-  const deleteSavedScenario = async () => {
-    if (!user?.id) {
-      setSaveError("Please log in to manage your saved trip.");
-      return;
-    }
-
-    if (tripBusy) return;
-
-    setSaving(true);
-    try {
-      await onDeleteTrip();
-      setSaveError("");
-    } catch {
-      setSaveError(
-        "The saved trip could not be deleted. Please try again."
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const savePreferredScenario = async () => {
-    if (tripBusy) return;
+  async function savePreferredScenario() {
+    if (tripBusy || saving) return;
 
     if (!user?.id) {
       setSaveError("Please log in to save your preferred trip.");
       return;
     }
 
-    const selectedScenario = scenarios.find(
+    const selected = scenarios.find(
       (scenario) => scenario.id === preferredScenario
     );
 
-    if (!selectedScenario) {
+    if (!selected) {
       setSaveError("Select a preferred scenario first.");
       return;
     }
 
-    const validNumber = (value, minimum) =>
-      value != null &&
-      String(value).trim() !== "" &&
-      Number.isFinite(Number(value)) &&
-      Number(value) >= minimum;
-
-    const start = Date.parse(selectedScenario.startDate);
-    const end = Date.parse(selectedScenario.endDate);
+    const start = Date.parse(selected.startDate);
+    const end = Date.parse(selected.endDate);
 
     const validTrip =
-      selectedScenario.origin.trim() !== "" &&
-      selectedScenario.destination.trim() !== "" &&
+      selected.origin.trim() !== "" &&
+      selected.destination.trim() !== "" &&
       Number.isFinite(start) &&
       Number.isFinite(end) &&
       end > start &&
-      ["car", "bus", "train", "plane"].includes(
-        selectedScenario.transportation
-      ) &&
-      validNumber(selectedScenario.cost, 0) &&
-      validNumber(selectedScenario.budget, 0) &&
-      Number(selectedScenario.budget) > 0 &&
-      validNumber(selectedScenario.travelTime, 0);
+      ["car", "bus", "train", "plane"].includes(selected.transportation) &&
+      validNumber(selected.cost, 0) &&
+      validNumber(selected.budget, 0) &&
+      Number(selected.budget) > 0 &&
+      validNumber(selected.travelTime, 0);
 
     if (!validTrip) {
       setSaveError(
@@ -183,10 +211,11 @@ useEffect(() => {
     }
 
     const tripToSave = {
-      ...selectedScenario,
-      report: buildStoredReport(selectedScenario, reportContext),
+      ...selected,
+      pricing: normalizePricing(selected.pricing),
+      report: buildStoredReport(selected, reportContext, editingScenario?.scenario),
       budgetResult:
-        Number(selectedScenario.cost) <= Number(selectedScenario.budget)
+        Number(selected.cost) <= Number(selected.budget)
           ? "Within budget"
           : "Over budget",
       savedAt: new Date().toISOString(),
@@ -203,21 +232,47 @@ useEffect(() => {
     } finally {
       setSaving(false);
     }
-  };
+  }
 
-  const getFeasibility = (scenario) => {
-    if (scenario.cost === "" || scenario.budget === "") {
+  async function deleteSavedScenario() {
+    if (!user?.id) {
+      setSaveError("Please log in to manage your saved trip.");
+      return;
+    }
+
+    if (tripBusy || saving) return;
+
+    setSaving(true);
+    try {
+      await onDeleteTrip();
+      setSaveError("");
+    } catch {
+      setSaveError("The saved trip could not be deleted. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function budgetLabel(scenario) {
+    if (
+      !validNumber(scenario.cost, 0) ||
+      !validNumber(scenario.budget, 0) ||
+      Number(scenario.budget) <= 0
+    ) {
       return "Not enough information";
     }
 
-    return Number(scenario.cost) <= Number(scenario.budget)
-      ? "Yes"
-      : "No";
-  };
+    return Number(scenario.cost) <= Number(scenario.budget) ? "Yes" : "No";
+  }
 
   return (
-    <div>
-      <h2>Scenario Comparison</h2>
+    <section id="scenario-comparison" aria-labelledby="scenario-comparison-heading" tabIndex={-1}>
+      <h2 id="scenario-comparison-heading">Scenario Comparison</h2>
+      {editingScenario && <p role="status">Editing your saved trip. Update the fields below, then save your preferred scenario.</p>}
+      <p>
+        Scenarios are saved snapshots. Changing their fields does not
+        fetch new hotel prices or recalculate the total.
+      </p>
 
       {saveError && (
         <p className="error-message" role="alert">
@@ -247,64 +302,26 @@ useEffect(() => {
           >
             <h3>
               Scenario {index + 1}
-              {preferredScenario === scenario.id && " ⭐ Preferred"}
+              {preferredScenario === scenario.id && " — Preferred"}
             </h3>
 
-            <div className="form-group">
-              <label htmlFor={`origin-${scenario.id}`}>Origin:</label>
-              <input
-                id={`origin-${scenario.id}`}
-                type="text"
-                placeholder="Enter origin"
-                value={scenario.origin}
-                onChange={(event) =>
-                  updateScenario(scenario.id, "origin", event.target.value)
-                }
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor={`destination-${scenario.id}`}>
-                Destination:
-              </label>
-              <input
-                id={`destination-${scenario.id}`}
-                type="text"
-                placeholder="Enter destination"
-                value={scenario.destination}
-                onChange={(event) =>
-                  updateScenario(
-                    scenario.id,
-                    "destination",
-                    event.target.value
-                  )
-                }
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor={`start-${scenario.id}`}>Start Date:</label>
-              <input
-                id={`start-${scenario.id}`}
-                type="date"
-                value={scenario.startDate}
-                onChange={(event) =>
-                  updateScenario(scenario.id, "startDate", event.target.value)
-                }
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor={`end-${scenario.id}`}>End Date:</label>
-              <input
-                id={`end-${scenario.id}`}
-                type="date"
-                value={scenario.endDate}
-                onChange={(event) =>
-                  updateScenario(scenario.id, "endDate", event.target.value)
-                }
-              />
-            </div>
+            {fields.map(([field, label, type]) => (
+              <div className="form-group" key={field}>
+                <label htmlFor={`${field}-${scenario.id}`}>
+                  {label}:
+                </label>
+                <input
+                  id={`${field}-${scenario.id}`}
+                  type={type}
+                  min={type === "number" ? "0" : undefined}
+                  step={type === "number" ? "any" : undefined}
+                  value={scenario[field]}
+                  onChange={(event) =>
+                    updateScenario(scenario.id, field, event.target.value)
+                  }
+                />
+              </div>
+            ))}
 
             <div className="form-group">
               <label htmlFor={`transportation-${scenario.id}`}>
@@ -329,74 +346,27 @@ useEffect(() => {
               </select>
             </div>
 
-            <div className="form-group">
-              <label htmlFor={`cost-${scenario.id}`}>
-                Estimated Cost ($):
-              </label>
-              <input
-                id={`cost-${scenario.id}`}
-                type="number"
-                min="0"
-                placeholder="Enter estimated cost"
-                value={scenario.cost}
-                onChange={(event) =>
-                  updateScenario(scenario.id, "cost", event.target.value)
-                }
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor={`travel-time-${scenario.id}`}>
-                Travel Time (hours):
-              </label>
-              <input
-                id={`travel-time-${scenario.id}`}
-                type="number"
-                min="0"
-                step="0.1"
-                placeholder="Enter travel time"
-                value={scenario.travelTime}
-                onChange={(event) =>
-                  updateScenario(
-                    scenario.id,
-                    "travelTime",
-                    event.target.value
-                  )
-                }
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor={`budget-${scenario.id}`}>Budget ($):</label>
-              <input
-                id={`budget-${scenario.id}`}
-                type="number"
-                min="0"
-                placeholder="Enter budget"
-                value={scenario.budget}
-                onChange={(event) =>
-                  updateScenario(scenario.id, "budget", event.target.value)
-                }
-              />
-            </div>
-
             <div className="scenario-results">
               <p>
                 <strong>Estimated Cost:</strong>{" "}
                 {scenario.cost === "" ? "Not entered" : `$${scenario.cost}`}
               </p>
-
+              <p>
+                <strong>Pricing Source:</strong>{" "}
+                {pricingLabel(scenario.pricing)}
+              </p>
               <p>
                 <strong>Travel Time:</strong>{" "}
                 {scenario.travelTime === ""
                   ? "Not entered"
                   : `${scenario.travelTime} hours`}
               </p>
-
               <p>
-                <strong>Within Budget:</strong>{" "}
-                {getFeasibility(scenario)}
+                <strong>Within Budget:</strong> {budgetLabel(scenario)}
               </p>
+              <small>
+                This budget check is not a full feasibility assessment.
+              </small>
             </div>
 
             <button
@@ -405,20 +375,16 @@ useEffect(() => {
             >
               Duplicate Scenario
             </button>
-
             <button
               type="button"
               onClick={() => removeScenario(scenario.id)}
               disabled={scenarios.length === 1}
-              style={{ marginLeft: "10px" }}
             >
               Remove Scenario
             </button>
-
             <button
               type="button"
               onClick={() => selectPreferred(scenario.id)}
-              style={{ marginLeft: "10px" }}
             >
               Select Preferred
             </button>
@@ -429,22 +395,15 @@ useEffect(() => {
       {preferredScenario !== null && (
         <div className="preferred-section">
           <p>
-            Preferred Scenario:{" "}
-            {scenarios.some((scenario) => scenario.id === preferredScenario)
-              ? `Scenario ${
-                  scenarios.findIndex(
-                    (scenario) => scenario.id === preferredScenario
-                  ) + 1
-                }`
-              : ""}
+            Preferred Scenario: Scenario{" "}
+            {scenarios.findIndex((item) => item.id === preferredScenario) + 1}
           </p>
-
           <button
             type="button"
-            disabled={tripBusy}
+            disabled={tripBusy || saving}
             onClick={savePreferredScenario}
           >
-            {tripBusy ? "Please wait…" : "Save Preferred Scenario"}
+            {tripBusy ? "Please wait..." : "Save Preferred Scenario"}
           </button>
         </div>
       )}
@@ -453,22 +412,20 @@ useEffect(() => {
         <div className="saved-scenario">
           <h3>Saved Preferred Scenario</h3>
           <p>Saved to your account.</p>
-          <p>
-            {savedScenario.origin} to {savedScenario.destination}
-          </p>
+          <p>{savedScenario.origin} to {savedScenario.destination}</p>
           <p>Estimated Cost: ${savedScenario.cost}</p>
+          <p>Pricing Source: {pricingLabel(savedScenario.pricing)}</p>
           <p>Travel Time: {savedScenario.travelTime} hours</p>
-
           <button
             type="button"
-            disabled={tripBusy}
+            disabled={tripBusy || saving}
             onClick={deleteSavedScenario}
           >
             Delete Saved Scenario
           </button>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
