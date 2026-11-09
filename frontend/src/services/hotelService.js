@@ -3,6 +3,7 @@ import { normalizeHotelRooms, validRoomOccupancies } from "./hotelRooms";
 export async function getHotelRates(
   {
     destination,
+    destinationCity,
     startDate,
     endDate,
     travelers,
@@ -49,7 +50,7 @@ export async function getHotelRates(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        destination,
+        destination: destinationCity?.label === destination ? destinationCity.name : destination,
         startDate,
         endDate,
         travelers: Number(travelers),

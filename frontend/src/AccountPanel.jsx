@@ -63,18 +63,18 @@ export default function AccountPanel({ user }) {
   }
 
   return (
-    <section aria-labelledby="account-heading">
+    <section id="traveler-account" className="account-panel" aria-labelledby="account-heading">
       <h2 id="account-heading">Traveler Account</h2>
 
       {!supabase ? (
         <p>Account access isn’t set up yet. You can still analyze a trip as a guest.</p>
       ) : user ? (
-        <>
+        <div className="account-signed-in">
           <p>Signed in as {user.email}</p>
           <button type="button" disabled={busy} onClick={handleLogout}>
             Log Out
           </button>
-        </>
+        </div>
       ) : (
         <form onSubmit={handleSubmit}>
           <p>You can analyze trips as a guest. Log in to access saved trips.</p>
@@ -103,7 +103,8 @@ export default function AccountPanel({ user }) {
             />
           </div>
 
-          <button type="submit" disabled={busy}>
+          <div className="actions">
+          <button className="primary" type="submit" disabled={busy}>
             {busy ? "Please wait…" : registering ? "Create Account" : "Log In"}
           </button>
 
@@ -118,6 +119,7 @@ export default function AccountPanel({ user }) {
           >
             {registering ? "Already registered? Log in" : "New traveler? Create an account"}
           </button>
+          </div>
         </form>
       )}
 

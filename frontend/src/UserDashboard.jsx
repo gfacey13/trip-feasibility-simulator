@@ -1,22 +1,10 @@
+import { formatMoney } from "./services/formatMoney";
 import HotelRoomBreakdown from "./HotelRoomBreakdown";
 
 import { useState } from "react";
 import { pricingLabel } from "./services/savedTripStorage";
 
-function money(value) {
-  if (
-    value == null ||
-    value === "" ||
-    !Number.isFinite(Number(value))
-  ) {
-    return "Not available";
-  }
-
-  return Number(value).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-  });
-}
+const money = formatMoney;
 
 function SavedTripCard({ savedTrip, onEditTrip, onDeleteTrip }) {
   const [showSummary, setShowSummary] = useState(false);
@@ -40,19 +28,19 @@ function SavedTripCard({ savedTrip, onEditTrip, onDeleteTrip }) {
             {savedTrip.endDate || "Not set"}
           </p>
 
-          <p>
-            <strong>Estimated cost:</strong> {money(savedTrip.cost)}
-          </p>
+          <p className="trip-cost"><small>Estimated cost</small>{money(savedTrip.cost)}</p>
 
           <p>
             <strong>Budget feasibility:</strong>{" "}
-            {savedTrip.budgetResult || "No saved result"}
+            <span className={`status-badge ${savedTrip.budgetResult === "Over budget" ? "over-budget" : ""}`}>{savedTrip.budgetResult || "No saved result"}</span>
           </p>
 
           <p><strong>Saved assessment:</strong> {savedTrip.report?.analysis?.status || "No full assessment saved"}</p>
-          <p><strong>Pricing source:</strong> {pricingLabel(savedTrip.pricing)}</p>
+          <p className="pricing-source"><strong>Pricing source:</strong> {pricingLabel(savedTrip.pricing)}</p>
 
+          <div className="actions">
           <button
+            className="primary"
             type="button"
             aria-expanded={showSummary}
             onClick={() => setShowSummary((current) => !current)}
@@ -61,7 +49,8 @@ function SavedTripCard({ savedTrip, onEditTrip, onDeleteTrip }) {
           </button>
 
           <button type="button" disabled={busy} onClick={() => onEditTrip?.(savedTrip)}>Edit Saved Trip</button>
-          {onDeleteTrip && <button type="button" disabled={busy} onClick={() => setConfirmDelete(true)}>Delete Saved Trip</button>}
+          {onDeleteTrip && <button className="danger" type="button" disabled={busy} onClick={() => setConfirmDelete(true)}>Delete Saved Trip</button>}
+          </div>
           {confirmDelete && (
             <div role="group" aria-label={`Confirm deletion of ${savedTrip.destination}`}>
               <p>Delete this saved trip and its report history?</p>
@@ -125,7 +114,7 @@ function SavedTripCard({ savedTrip, onEditTrip, onDeleteTrip }) {
 
               <p>
                 <strong>Budget feasibility:</strong>{" "}
-                {savedTrip.budgetResult || "No saved result"}
+                <span className={`status-badge ${savedTrip.budgetResult === "Over budget" ? "over-budget" : ""}`}>{savedTrip.budgetResult || "No saved result"}</span>
               </p>
 
             </div>
@@ -154,6 +143,7 @@ function UserDashboard({ savedTrips, savedTrip, accountSaved = false, onEditTrip
   ];
   return (
     <section className="user-dashboard" aria-labelledby="dashboard-heading">
+      <p className="section-label">Your saved journeys</p>
       <h2 id="dashboard-heading">Your Dashboard</h2>
       <p>{accountSaved ? "Saved to your account." : "Saved on this device."} New trips are saved separately; editing updates only the selected trip.</p>
       {!trips.length ? (
@@ -164,7 +154,7 @@ function UserDashboard({ savedTrips, savedTrip, accountSaved = false, onEditTrip
       ) : (
         <>
           <p>Select two or more saved trips to compare. Budget feasibility checks budget only; the saved assessment may also include travel time and weather.</p>
-          <button type="button" disabled={selected.length < 2} onClick={() => setShowComparison(true)}>Compare Selected Trips ({selected.length})</button>
+          <button className="primary" type="button" disabled={selected.length < 2} onClick={() => setShowComparison(true)}>Compare Selected Trips ({selected.length})</button>
           {showComparison && selected.length >= 2 && (
             <section aria-labelledby="saved-comparison-heading">
               <h3 id="saved-comparison-heading">Saved Trip Comparison</h3>

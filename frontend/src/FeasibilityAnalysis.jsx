@@ -1,3 +1,4 @@
+import { formatMoney } from "./services/formatMoney";
 import { evaluateFeasibility } from "./services/evaluateFeasibility";
 
 function FeasibilityAnalysis({
@@ -11,13 +12,14 @@ function FeasibilityAnalysis({
   return (
     <section aria-labelledby="feasibility-heading">
       <h2 id="feasibility-heading">Feasibility Analysis</h2>
-      <p>Total Cost: ${estimatedTotal}</p>
-      <p>Budget: ${budget}</p>
-      <p>Travel Time: {travelTime.toFixed(1)} hours</p>
-      <p>Your Travel-Time Limit: {maxTravelTime} hours</p>
+      <dl className="metric-grid">
+        <div className="metric"><dt>Total Cost</dt><dd>{formatMoney(estimatedTotal)}<small>Budget: {formatMoney(budget)}</small></dd></div>
+        <div className="metric"><dt>Travel Time</dt><dd>{travelTime.toFixed(1)} hours<small>Your Travel-Time Limit: {maxTravelTime} hours</small></dd></div>
+        <div className="metric"><dt>Budget remaining</dt><dd>{formatMoney(budget - estimatedTotal)}<small>After transportation and lodging</small></dd></div>
+      </dl>
 
       {/* Announce the new result when the asynchronous forecast arrives. */}
-      <div aria-live="polite">
+      <div className="assessment-result" aria-live="polite">
         <h3>Result: {result.status}</h3>
         <ul className="feasibility-reasons">
           {result.reasons.map((reason) => <li key={reason}>{reason}</li>)}

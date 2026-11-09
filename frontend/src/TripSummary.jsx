@@ -1,3 +1,4 @@
+import { formatMoney } from "./services/formatMoney";
 import HotelRoomBreakdown from "./HotelRoomBreakdown";
 
 function TripSummary({
@@ -17,12 +18,14 @@ function TripSummary({
   const measurement = (value, unit) =>
     Number.isFinite(value) ? `${value}${unit}` : "Unavailable";
 
-  const money = (value) => Number(value).toFixed(2);
+  const money = formatMoney;
 
   return (
     <section className="trip-summary" aria-labelledby="trip-summary-heading">
       <h2 id="trip-summary-heading">Trip Summary Report</h2>
 
+      <div className="report-grid">
+      <div>
       <h3>Trip Details</h3>
       <p><strong>Origin:</strong> {tripForm.origin}</p>
       <p><strong>Destination:</strong> {tripForm.destination}</p>
@@ -32,6 +35,8 @@ function TripSummary({
       <p><strong>Travelers:</strong> {tripForm.travelers}</p>
       <p><strong>Transportation:</strong> {tripForm.transportation}</p>
 
+      </div>
+      <div>
       <h3>Cost Summary</h3>
 
       {selectedHotel ? (
@@ -44,11 +49,11 @@ function TripSummary({
           <p><strong>Hotel:</strong> {selectedHotel.hotelName}</p>
           <HotelRoomBreakdown rooms={selectedHotel.rooms} nights={selectedHotel.nights} />
           <p>
-            <strong>Hotel Base Total:</strong> $
+            <strong>Hotel Base Total:</strong>{" "}
             {money(selectedHotel.baseTotal)} USD
           </p>
           <p>
-            <strong>Reported Additional Fees:</strong> $
+            <strong>Reported Additional Fees:</strong>{" "}
             {money(selectedHotel.additionalFees)} USD
           </p>
           <p>These additional fees are already included in the lodging total.</p>
@@ -60,11 +65,13 @@ function TripSummary({
         </p>
       )}
 
-      <p><strong>Transportation Cost:</strong> ${money(transportationTotal)}</p>
-      <p><strong>Lodging Cost:</strong> ${money(lodgingTotal)}</p>
-      <p><strong>Total Estimated Cost:</strong> ${money(estimatedTotal)}</p>
-      <p><strong>Budget:</strong> ${money(tripForm.budget)}</p>
+      <p><strong>Transportation Cost:</strong> {money(transportationTotal)}</p>
+      <p><strong>Lodging Cost:</strong> {money(lodgingTotal)}</p>
+      <p><strong>Total Estimated Cost:</strong> {money(estimatedTotal)}</p>
+      <p><strong>Budget:</strong> {money(tripForm.budget)}</p>
 
+      </div>
+      </div>
       <h3>Travel Information</h3>
       <p>
         <strong>Estimated Travel Time:</strong> {estimatedTravelTime} hours
@@ -94,7 +101,7 @@ function TripSummary({
         </p>
       )}
 
-      <div aria-live="polite">
+      <div className="assessment-result" aria-live="polite">
         <h3>Feasibility Result</h3>
         <p>{analysis.status}</p>
         <ul className="feasibility-reasons">

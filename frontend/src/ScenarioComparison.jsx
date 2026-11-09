@@ -1,3 +1,4 @@
+import { formatMoney } from "./services/formatMoney";
 import { useState } from "react";
 import { buildStoredReport } from "./services/buildStoredReport";
 import {
@@ -270,6 +271,7 @@ function ScenarioComparison({
 
   return (
     <section id="scenario-comparison" aria-labelledby="scenario-comparison-heading" tabIndex={-1}>
+      <p className="section-label">Explore your options</p>
       <h2 id="scenario-comparison-heading">Scenario Comparison</h2>
       {editingScenario && <p role="status">Editing your saved trip. Update the fields below, then save your preferred scenario.</p>}
       <p>
@@ -283,25 +285,11 @@ function ScenarioComparison({
         </p>
       )}
 
-      <div
-        className="scenario-container"
-        style={{
-          display: "flex",
-          gap: "20px",
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-        }}
-      >
+      <div className="scenario-container">
         {scenarios.map((scenario, index) => (
           <div
             className="scenario-card"
             key={scenario.id}
-            style={{
-              flex: "1 1 300px",
-              border: "1px solid #ccc",
-              padding: "20px",
-              borderRadius: "8px",
-            }}
           >
             <h3>
               Scenario {index + 1}
@@ -352,7 +340,7 @@ function ScenarioComparison({
             <div className="scenario-results">
               <p>
                 <strong>Estimated Cost:</strong>{" "}
-                {scenario.cost === "" ? "Not entered" : `$${scenario.cost}`}
+                {scenario.cost === "" ? "Not entered" : formatMoney(scenario.cost)}
               </p>
               <p>
                 <strong>Pricing Source:</strong>{" "}
@@ -372,6 +360,7 @@ function ScenarioComparison({
               </small>
             </div>
 
+            <div className="actions">
             <button
               type="button"
               onClick={() => duplicateScenario(scenario)}
@@ -387,10 +376,13 @@ function ScenarioComparison({
             </button>
             <button
               type="button"
+              className="primary"
+              aria-pressed={preferredScenario === scenario.id}
               onClick={() => selectPreferred(scenario.id)}
             >
               Select Preferred
             </button>
+            </div>
           </div>
         ))}
       </div>
@@ -404,6 +396,7 @@ function ScenarioComparison({
           <button
             type="button"
             disabled={tripBusy || saving}
+            className="primary"
             onClick={savePreferredScenario}
           >
             {tripBusy ? "Please wait..." : "Save Preferred Scenario"}
@@ -416,7 +409,7 @@ function ScenarioComparison({
           <h3>Saved Preferred Scenario</h3>
           <p>Saved to your account.</p>
           <p>{savedScenario.origin} to {savedScenario.destination}</p>
-          <p>Estimated Cost: ${savedScenario.cost}</p>
+          <p>Estimated Cost: {formatMoney(savedScenario.cost)}</p>
           <p>Pricing Source: {pricingLabel(savedScenario.pricing)}</p>
           <p>Travel Time: {savedScenario.travelTime} hours</p>
           <button

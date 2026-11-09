@@ -1,10 +1,11 @@
+import { formatMoney } from "./services/formatMoney";
 import { useEffect, useRef, useState } from "react";
 import { getHotelRates } from "./services/hotelService";
 import { validRoomOccupancies } from "./services/hotelRooms";
 import HotelRoomBreakdown from "./HotelRoomBreakdown";
 
 function HotelPricing({ tripForm, selectedHotel, onSelect, rooms, onRoomsChange }) {
-  const [countryCode, setCountryCode] = useState("");
+  const [countryCode, setCountryCode] = useState(tripForm.destinationCity?.countryCode ?? "");
   const [guestNationality, setGuestNationality] = useState("");
   const [rates, setRates] = useState([]);
   const [status, setStatus] = useState("idle");
@@ -123,8 +124,10 @@ function HotelPricing({ tripForm, selectedHotel, onSelect, rooms, onRoomsChange 
   }
 
   return (
-    <section className="hotel-pricing" aria-labelledby="hotel-pricing-heading">
-      <h2 id="hotel-pricing-heading">Hotel Test Pricing — Optional</h2>
+    <details className="hotel-options">
+      <summary>Hotel test pricing <small>Optional / explore room prices</small></summary>
+      <section className="hotel-pricing" aria-labelledby="hotel-pricing-heading">
+      <h3 id="hotel-pricing-heading">Hotel Test Pricing — Optional</h3>
 
       <p>
         Search LiteAPI sandbox prices for your room arrangement. Prices are test
@@ -137,6 +140,7 @@ function HotelPricing({ tripForm, selectedHotel, onSelect, rooms, onRoomsChange 
         reported additional fees.
       </p>
 
+      <div className="field-grid">
       <div className="form-group">
         <label htmlFor="hotelCountry">Destination Country Code</label>
         <input
@@ -169,13 +173,16 @@ function HotelPricing({ tripForm, selectedHotel, onSelect, rooms, onRoomsChange 
         </small>
       </div>
 
+      </div>
       <p>
         Room arrangement for {tripForm.travelers || "your"} travelers. Add up to
         8 rooms, with up to 8 guests per room.
       </p>
+      <div className="room-grid">
       {rooms.map((room, index) => (
-        <fieldset key={index}>
+        <fieldset key={index} className="room-card">
           <legend>Room {index + 1}</legend>
+          <div className="form-group room-adults">
           <label htmlFor={`room-adults-${index}`}>Adults</label>
           <input
             id={`room-adults-${index}`}
@@ -191,8 +198,10 @@ function HotelPricing({ tripForm, selectedHotel, onSelect, rooms, onRoomsChange 
               }))
             }
           />
+          </div>
           {room.children.map((age, childIndex) => (
-            <div key={childIndex}>
+            <div key={childIndex} className="child-row">
+              <div className="form-group">
               <label htmlFor={`room-${index}-child-${childIndex}`}>
                 Child {childIndex + 1} age (0–17)
               </label>
@@ -212,8 +221,10 @@ function HotelPricing({ tripForm, selectedHotel, onSelect, rooms, onRoomsChange 
                   }))
                 }
               />
+              </div>
               <button
                 type="button"
+                className="danger"
                 onClick={() =>
                   changeRoom(index, (current) => ({
                     ...current,
@@ -227,6 +238,7 @@ function HotelPricing({ tripForm, selectedHotel, onSelect, rooms, onRoomsChange 
               </button>
             </div>
           ))}
+          <div className="actions">
           <button
             type="button"
             disabled={Number(room.adults) + room.children.length >= 8}
@@ -251,8 +263,11 @@ function HotelPricing({ tripForm, selectedHotel, onSelect, rooms, onRoomsChange 
           >
             Remove room {index + 1}
           </button>
+          </div>
         </fieldset>
       ))}
+      </div>
+      <div className="actions">
       <button
         type="button"
         disabled={rooms.length >= 8}
@@ -266,6 +281,7 @@ function HotelPricing({ tripForm, selectedHotel, onSelect, rooms, onRoomsChange 
 
       <button
         type="button"
+        className="primary"
         disabled={status === "loading"}
         onClick={searchHotels}
       >
@@ -278,8 +294,10 @@ function HotelPricing({ tripForm, selectedHotel, onSelect, rooms, onRoomsChange 
         Use Manual Lodging
       </button>
 
-      <div aria-live="polite">
-        {error && <p className="error-message">{error}</p>}
+      </div>
+      <div aria-live="polite" aria-busy={status === "loading"}>
+        {status === "loading" && <p role="status">Searching for hotel prices for your room arrangement...</p>}
+        {error && <p className="error-message" role="alert">{error}</p>}
 
         {status === "success" && (
           <>
@@ -288,17 +306,18 @@ function HotelPricing({ tripForm, selectedHotel, onSelect, rooms, onRoomsChange 
               additional fees are included below.
             </p>
 
-            <ul>
+            <ul className="hotel-rates">
               {rates.map((rate, index) => (
                 <li key={`${rate.hotelName}-${index}`}>
                   <p>
                     <strong>{rate.hotelName}</strong>
-                    {" — "}${rate.total.toFixed(2)} USD for the whole stay ($
-                    {rate.additionalFees.toFixed(2)} in additional fees)
+                    {" \u2014 "}{formatMoney(rate.total)} USD for the whole stay (
+                    {formatMoney(rate.additionalFees)} in additional fees)
                   </p>
                   <HotelRoomBreakdown rooms={rate.rooms} nights={rate.nights} />
                   <button
                     type="button"
+                    className="primary"
                     aria-pressed={selectedHotel === rate}
                     onClick={() => onSelect(rate)}
                   >
@@ -311,14 +330,15 @@ function HotelPricing({ tripForm, selectedHotel, onSelect, rooms, onRoomsChange 
         )}
 
         {selectedHotel && (
-          <p>
-            Using {selectedHotel.hotelName}: ${selectedHotel.total.toFixed(2)}{" "}
+          <p className="selected-hotel">
+            Using {selectedHotel.hotelName}: {formatMoney(selectedHotel.total)}{" "}
             USD. Manual lodging is saved but is not used while this hotel is
             selected.
           </p>
         )}
       </div>
-    </section>
+      </section>
+    </details>
   );
 }
 
