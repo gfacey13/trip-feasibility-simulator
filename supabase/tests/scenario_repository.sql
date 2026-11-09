@@ -57,6 +57,62 @@ begin
  end;
  if not denied then raise exception 'Guest repository access allowed'; end if;
 end $$;
+-- SCRUM-71 validation checks
+
+do $$
+begin
+
+  begin
+    perform public.trip_repository_create(
+      '{"origin":"","destination":"Boston","startDate":"2026-11-08","endDate":"2026-11-14","budget":1000,"travelers":1,"transportation":"car","cost":100,"travelTime":1}',
+      '{}'
+    );
+    raise exception 'Missing origin accepted';
+  exception when others then
+    null;
+  end;
+
+  begin
+    perform public.trip_repository_create(
+      '{"origin":"Norfolk","destination":"","startDate":"2026-11-08","endDate":"2026-11-14","budget":1000,"travelers":1,"transportation":"car","cost":100,"travelTime":1}',
+      '{}'
+    );
+    raise exception 'Missing destination accepted';
+  exception when others then
+    null;
+  end;
+
+  begin
+    perform public.trip_repository_create(
+      '{"origin":"Norfolk","destination":"Boston","startDate":"2026-11-14","endDate":"2026-11-08","budget":1000,"travelers":1,"transportation":"car","cost":100,"travelTime":1}',
+      '{}'
+    );
+    raise exception 'Invalid date range accepted';
+  exception when others then
+    null;
+  end;
+
+  begin
+    perform public.trip_repository_create(
+      '{"origin":"Norfolk","destination":"Boston","startDate":"2026-11-08","endDate":"2026-11-14","budget":-1,"travelers":1,"transportation":"car","cost":100,"travelTime":1}',
+      '{}'
+    );
+    raise exception 'Negative budget accepted';
+  exception when others then
+    null;
+  end;
+
+  begin
+    perform public.trip_repository_create(
+      '{"origin":"Norfolk","destination":"Boston","startDate":"2026-11-08","endDate":"2026-11-14","budget":1000,"travelers":0,"transportation":"car","cost":100,"travelTime":1}',
+      '{}'
+    );
+    raise exception 'Invalid traveler count accepted';
+  exception when others then
+    null;
+  end;
+
+end $$;
 reset role;
 rollback;
 select 'PASS: CRUD, reports, multiple scenarios, ownership, guest denial; test data rolled back.' as result;
