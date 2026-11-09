@@ -36,7 +36,7 @@ function App() {
   const currentUserId = useRef(null);
   const [authReady, setAuthReady] = useState(!supabase);
   const {
-    savedScenario, loading: tripLoading, error: tripError,
+    savedScenario, savedTrips, loading: tripLoading, error: tripError,
     retryLoad, saveTrip, deleteTrip,
   } = useSavedTrip(user);
 
@@ -171,8 +171,12 @@ function App() {
             ) : tripError ? null : (
               <UserDashboard
                 accountSaved
-                key={`${user.id}-${savedScenario?.savedAt || "empty"}`}
-                savedTrip={savedScenario}
+                key={`dashboard-${user.id}`}
+                savedTrips={savedTrips}
+                onDeleteTrip={async (id) => {
+                  await deleteTrip(id);
+                  setEditingScenario((current) => current?.scenario.persistedId === id ? null : current);
+                }}
                 onEditTrip={(scenario) => {
                   setEditingScenario({ ownerId: user.id, requestId: crypto.randomUUID(), scenario });
                   const editor = document.getElementById("scenario-comparison");

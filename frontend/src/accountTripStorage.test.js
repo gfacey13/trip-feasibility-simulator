@@ -43,7 +43,11 @@ describe('scenario repository', () => {
     await expect(repository[method]('trip-a', scenario, report)).rejects.toThrow('Database unavailable');
   });
 });
-describe('preferred screen compatibility', () => {
+describe('account trip storage', () => {
+  it('loads every saved trip with its own report and ID', async () => {
+    const second = { ...row, id: 'trip-b', scenario: { ...scenario, destination: 'Richmond' } };
+    expect(await fixture([row, second]).storage.loadAll()).toMatchObject([{ persistedId: 'trip-a' }, { persistedId: 'trip-b', destination: 'Richmond' }]);
+  });
   it('loads saved results without losing report data or persistent ID', async () => {
     expect(await fixture().storage.load('ignored-user')).toMatchObject({ persistedId: 'trip-a', report, budgetResult: 'Within budget' });
   });

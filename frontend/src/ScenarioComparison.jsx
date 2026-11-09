@@ -65,7 +65,7 @@ function ScenarioComparison({
   if (editChanged) {
     setLastEditRequest(editingScenario.requestId);
     setLastCalculationId(calculationId);
-    setScenarios([{ ...editingScenario.scenario, id: 1 }]);
+    setScenarios([{ ...editingScenario.scenario, reportBaseline: editingScenario.scenario, id: 1 }]);
     setPreferredScenario(1);
     setSaveError("");
   }
@@ -148,6 +148,7 @@ function ScenarioComparison({
   function duplicateScenario(scenario) {
     const duplicate = {
       ...scenario,
+      persistedId: undefined,
       id: crypto.randomUUID(),
       pricing: normalizePricing(scenario.pricing),
     };
@@ -210,10 +211,11 @@ function ScenarioComparison({
       return;
     }
 
+    const { reportBaseline, ...details } = selected;
     const tripToSave = {
-      ...selected,
+      ...details,
       pricing: normalizePricing(selected.pricing),
-      report: buildStoredReport(selected, reportContext, editingScenario?.scenario),
+      report: buildStoredReport(selected, reportContext, reportBaseline ?? null),
       budgetResult:
         Number(selected.cost) <= Number(selected.budget)
           ? "Within budget"
@@ -223,7 +225,8 @@ function ScenarioComparison({
 
     setSaving(true);
     try {
-      await onSaveTrip(tripToSave);
+      const saved = await onSaveTrip(tripToSave);
+      if (saved) setScenarios((current) => current.map((item) => item.id === selected.id ? { ...saved, reportBaseline: saved, id: item.id } : item));
       setSaveError("");
     } catch {
       setSaveError(
