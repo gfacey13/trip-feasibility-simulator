@@ -1,17 +1,18 @@
 import { useState } from "react";
 
-function TravelTime({ transportation, onDistanceChange }) {
+function TravelTime({ transportation, onDistanceChange, showErrors = false }) {
   const [distance, setDistance] = useState("");
 
   return (
-    <>
-      <h2>Travel Time Calculator</h2>
+    <div className="form-group">
 
       <label htmlFor="distance">
         Distance (Miles)
       </label>
 
       <input
+        aria-invalid={showErrors && (!distance || Number(distance) <= 0)}
+        aria-describedby="distance-help"
         id="distance"
         type="number"
         min="1"
@@ -25,13 +26,14 @@ function TravelTime({ transportation, onDistanceChange }) {
       />
 
 
+      <small id="distance-help">Enter the journey distance in miles, greater than zero.</small>
       {distance && !transportation && (
-        <p className="error-message">
+        <p className="error-message" role="alert">
               Please select a transportation method in Trip Input Details.
         </p>
       )}
 
-    </>
+    </div>
   );
 }
 

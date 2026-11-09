@@ -1,3 +1,4 @@
+import { formatMoney } from "./services/formatMoney";
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import TravelTime from "./TravelTime";
@@ -148,8 +149,28 @@ function App() {
     : "Estimated costs use the transportation and lodging prices you entered.";
 
   return (
-    <main>
-      <h1>Trip Feasibility Simulator</h1>
+    <main id="main-content">
+      <a className="skip-link" href="#plan-trip">Skip to trip planner</a>
+      <nav className="site-nav" aria-label="Main navigation">
+        <a className="brand" href="#main-content"><span className="brand-mark" aria-hidden="true">T</span> Trip Feasibility</a>
+        <div className="nav-links">
+          <a href="#plan-trip">Plan a trip</a>
+          <a href="#saved-trips">Saved trips</a>
+          <a href="#scenario-comparison">Scenarios</a>
+          <a href="#traveler-account">Account</a>
+        </div>
+      </nav>
+      <header className="hero">
+        <div>
+          <p className="eyebrow">A little planning. A clearer journey.</p>
+          <h1>Trip Feasibility Simulator</h1>
+          <p>Bring your budget, travel time, and destination weather together. Explore your options before you go.</p>
+        </div>
+        <aside className="hero-note" aria-label="How it works">
+          <strong>Your next trip, in perspective.</strong>
+          <p>Plan a route. Compare the costs. Save the option that works for you.</p>
+        </aside>
+      </header>
 
       {authReady ? (
         <AccountPanel key={`account-${user?.id ?? "guest"}`} user={user} />
@@ -157,6 +178,7 @@ function App() {
         <p role="status">Checking your account...</p>
       )}
 
+      <div id="saved-trips">
       {authReady && (
         user ? (
           <>
@@ -194,7 +216,11 @@ function App() {
         )
       )}
 
+      </div>
+      <section id="plan-trip" className="panel" aria-labelledby="trip-input-heading">
+      <p className="section-label">01 / Build your trip</p>
       <TripInputForm
+        showErrors={showResults}
         form={tripForm}
         onFormChange={(updatedForm) => {
           if (updatedForm.travelers !== tripForm.travelers) {
@@ -207,10 +233,11 @@ function App() {
         }}
       />
 
-      <p>
-        Enter transportation and manual lodging costs, or select a hotel test
-        price below.
-      </p>
+      <div className="section-divider">
+        <p className="section-label">02 / Set your costs</p>
+        <h3>Transportation &amp; lodging</h3>
+        <p className="section-intro">Enter your own prices, or explore optional hotel test pricing below. All costs are in USD.</p>
+      </div>
 
       <div className="cost-inputs">
         <div className="form-group">
@@ -218,6 +245,8 @@ function App() {
             Transportation Cost Per Traveler
           </label>
           <input
+            aria-invalid={showResults && !validNumber(transportationCost, 0)}
+            aria-describedby={showResults && !validNumber(transportationCost, 0) ? "transportation-cost-error" : undefined}
             id="transportationCost"
             type="number"
             min="0"
@@ -229,18 +258,21 @@ function App() {
               setShowResults(false);
             }}
           />
+          {showResults && !validNumber(transportationCost, 0) && <small id="transportation-cost-error" className="field-error">Enter a transportation price of zero or more per traveler.</small>}
         </div>
 
         <div className="form-group">
-          <p>Number of Nights</p>
-          <p className="calculated-value">
+          <span id="nights-label">Number of Nights</span>
+          <output aria-labelledby="nights-label" className="calculated-value">
             {nights || "Calculated from dates"}
-          </p>
+          </output>
         </div>
 
         <div className="form-group">
           <label htmlFor="lodgingCost">Manual Lodging Cost Per Night</label>
           <input
+            aria-invalid={showResults && !selectedHotel && !validNumber(lodgingCost, 0)}
+            aria-describedby="lodging-help"
             id="lodgingCost"
             type="number"
             min="0"
@@ -253,7 +285,7 @@ function App() {
               setShowResults(false);
             }}
           />
-          <small>
+          <small id="lodging-help">
             Include all rooms and estimated taxes or fees. If a hotel is
             selected, choose Use Manual Lodging to edit this amount.
           </small>
@@ -261,7 +293,7 @@ function App() {
       </div>
 
       <HotelPricing
-        key={JSON.stringify({ ...tripForm, travelers: undefined })}
+        key={JSON.stringify({ destination: tripForm.destination, country: tripForm.destinationCity?.countryCode, startDate: tripForm.startDate, endDate: tripForm.endDate })}
         tripForm={tripForm}
         selectedHotel={selectedHotel}
         rooms={hotelRooms}
@@ -279,17 +311,24 @@ function App() {
       />
 
       {showResults && hasInvalidInput && !invalidDates && (
-        <p className="error-message">
+        <p className="error-message" role="alert">
           Complete the trip details, valid costs, distance, and a positive
           travel-time limit. Enter manual lodging or select a hotel.
         </p>
       )}
 
       {invalidDates && (
-        <p className="error-message">End date must be after start date.</p>
+        <p className="error-message" role="alert">End date must be after start date.</p>
       )}
 
+      <div className="section-divider">
+        <p className="section-label">03 / Check your journey</p>
+        <h3>Distance &amp; travel limits</h3>
+        <p className="section-intro">Use the distance for the journey you are assessing, then set the longest travel time you would accept.</p>
+      </div>
+      <div className="travel-fields">
       <TravelTime
+        showErrors={showResults}
         transportation={tripForm.transportation}
         onDistanceChange={(newDistance) => {
           setDistance(newDistance);
@@ -301,6 +340,8 @@ function App() {
       <div className="travel-limit form-group">
         <label htmlFor="maxTravelTime">Maximum Travel Time (hours)</label>
         <input
+          aria-invalid={showResults && (!validNumber(maxTravelTime, 0) || Number(maxTravelTime) <= 0)}
+          aria-describedby="travel-limit-help"
           id="maxTravelTime"
           type="number"
           min="0.1"
@@ -312,31 +353,52 @@ function App() {
             setShowResults(false);
           }}
         />
-        <small>
-          Applies to the same journey as the distance entered above.
+        <small id="travel-limit-help">
+          Enter a limit greater than zero. Applies to the same journey as the distance entered above.
         </small>
       </div>
 
+      </div>
       <div className="calculate-button-container">
+        <p>Ready? Review your costs, travel time, and destination forecast.</p>
         <button
           type="button"
+          className="primary"
           onClick={() => {
             setWeather(null);
             setEditingScenario(null);
             setAssessmentId((current) => current + 1);
             setShowResults(true);
+            if (hasInvalidInput) {
+              const invalidField = [
+                ["origin", tripForm.origin.trim() !== ""],
+                ["destination", tripForm.destination.trim() !== ""],
+                ["startDate", Boolean(tripForm.startDate) && Number.isFinite(startTime)],
+                ["endDate", hasDates && !invalidDates],
+                ["budget", validNumber(tripForm.budget, 0) && Number(tripForm.budget) > 0],
+                ["travelers", validNumber(tripForm.travelers, 1) && Number.isInteger(Number(tripForm.travelers))],
+                ["transportation", Boolean(speeds[tripForm.transportation])],
+                ["transportationCost", validNumber(transportationCost, 0)],
+                ["lodgingCost", Boolean(selectedHotel) || validNumber(lodgingCost, 0)],
+                ["distance", validNumber(distance, 0) && Number(distance) > 0],
+                ["maxTravelTime", validNumber(maxTravelTime, 0) && Number(maxTravelTime) > 0],
+              ].find(([, valid]) => !valid)?.[0];
+              document.getElementById(invalidField)?.focus();
+            }
           }}
         >
           Calculate Feasibility
         </button>
       </div>
 
+      </section>
       {showResults && !hasInvalidInput && (
-        <>
-          <h2>Trip Feasibility Results</h2>
+        <section className="results-panel" aria-labelledby="trip-results-heading">
+          <p className="section-label">Your trip, at a glance</p>
+          <h2 id="trip-results-heading">Trip Feasibility Results</h2>
           <p>{costDescription}</p>
-          <p>Transportation: ${transportationTotal.toFixed(2)}</p>
-          <p>Lodging: ${lodgingTotal.toFixed(2)}</p>
+          <p>Transportation: {formatMoney(transportationTotal)}</p>
+          <p>Lodging: {formatMoney(lodgingTotal)}</p>
 
           {selectedHotel && (
             <p>
@@ -373,7 +435,7 @@ function App() {
             maxTravelTime={Number(maxTravelTime)}
             selectedHotel={selectedHotel}
           />
-        </>
+        </section>
       )}
 
       <ScenarioComparison
@@ -396,6 +458,7 @@ function App() {
         }}
         selectedHotel={selectedHotel}
       />
+      <footer className="site-footer">Plan with estimates, travel with perspective. Hotel prices are sandbox test estimates; live transportation delays are not included.</footer>
     </main>
   );
 }

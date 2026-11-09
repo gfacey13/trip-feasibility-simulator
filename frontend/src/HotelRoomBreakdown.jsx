@@ -1,3 +1,5 @@
+import { formatMoney } from "./services/formatMoney";
+
 function HotelRoomBreakdown({ rooms, nights }) {
   if (!rooms?.length || !Number.isSafeInteger(nights) || nights < 1)
     return null;
@@ -19,15 +21,11 @@ function HotelRoomBreakdown({ rooms, nights }) {
                 `, children ages ${room.children.join(", ")}`}
             </p>
             <p>
-              $
-              {(
-                Math.round(Math.round(room.total * 100) / nights) / 100
-              ).toFixed(2)}{" "}
+              {formatMoney(Math.round(Math.round(room.total * 100) / nights) / 100)}{" "}
               USD average per night for this room
             </p>
             <p>
-              ${room.total.toFixed(2)} USD room total for the stay, including $
-              {room.additionalFees.toFixed(2)} in reported additional fees.
+              {formatMoney(room.total)} USD room total for the stay, including {formatMoney(room.additionalFees)} in reported additional fees.
             </p>
           </li>
         ))}
