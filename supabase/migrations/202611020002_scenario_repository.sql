@@ -136,30 +136,6 @@ language plpgsql volatile security invoker set search_path = ''
 as $$
 declare new_id uuid;
 begin
-    if trim(coalesce(p_scenario->>'origin', '')) = '' then
-    raise exception 'Origin is required.';
-  end if;
-
-  if trim(coalesce(p_scenario->>'destination', '')) = '' then
-    raise exception 'Destination is required.';
-  end if;
-
-  if (p_scenario->>'endDate')::date <=
-     (p_scenario->>'startDate')::date then
-    raise exception 'Return date must be after departure date.';
-  end if;
-
-  if (p_scenario->>'budget')::numeric < 0 then
-    raise exception 'Budget cannot be negative.';
-  end if;
-
-  if coalesce(
-    (p_report->>'travelers')::integer,
-    (p_scenario->>'travelers')::integer,
-    0
-  ) < 1 then
-    raise exception 'Traveler count must be a positive whole number.';
-  end if;
   insert into public.trip_scenarios (
     user_id, origin, destination, departure_date, return_date, budget,
     travelers, transportation_mode, scenario_snapshot
@@ -192,30 +168,6 @@ returns table (
 language plpgsql volatile security invoker set search_path = ''
 as $$
 begin
-    if trim(coalesce(p_scenario->>'origin', '')) = '' then
-    raise exception 'Origin is required.';
-  end if;
-
-  if trim(coalesce(p_scenario->>'destination', '')) = '' then
-    raise exception 'Destination is required.';
-  end if;
-
-  if (p_scenario->>'endDate')::date <=
-     (p_scenario->>'startDate')::date then
-    raise exception 'Return date must be after departure date.';
-  end if;
-
-  if (p_scenario->>'budget')::numeric < 0 then
-    raise exception 'Budget cannot be negative.';
-  end if;
-
-  if coalesce(
-    (p_report->>'travelers')::integer,
-    (p_scenario->>'travelers')::integer,
-    0
-  ) < 1 then
-    raise exception 'Traveler count must be a positive whole number.';
-  end if;
   update public.trip_scenarios s set
     origin = p_scenario->>'origin', destination = p_scenario->>'destination',
     departure_date = (p_scenario->>'startDate')::date,
