@@ -90,7 +90,7 @@ begin
   exception when insufficient_privilege then null;
   end;
   select id into saved_id from public.trip_repository_create(
-    '{"origin":"Norfolk","destination":"Miami","startDate":"2026-11-08","endDate":"2026-11-14","budget":7000,"transportation":"car","cost":100,"travelTime":2}', '{}');
+    '{"origin":"Norfolk","destination":"Miami","startDate":"2026-11-08","endDate":"2026-11-14","budget":7000,"travelers":1,"transportation":"car","cost":100,"travelTime":2}', '{}');
   if not exists(select 1 from public.trip_repository_get(saved_id)) then raise exception 'Second owner cannot read own trip'; end if;
   if not public.trip_repository_delete(saved_id) then raise exception 'Second owner cannot delete own trip'; end if;
 end $test$;
