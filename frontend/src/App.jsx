@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import TravelTime from "./TravelTime";
 import TripInputForm from "./TripInputForm";
@@ -32,6 +32,8 @@ function validNumber(value, minimum) {
 
 function App() {
   const [user, setUser] = useState(null);
+  const [editingScenario, setEditingScenario] = useState(null);
+  const currentUserId = useRef(null);
   const [authReady, setAuthReady] = useState(!supabase);
   const {
     savedScenario, loading: tripLoading, error: tripError,
@@ -61,7 +63,13 @@ function App() {
   useEffect(() => {
     if (!supabase) return;
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const nextUser = session?.user ?? null;
+      const nextId = nextUser?.id ?? null;
+      if (currentUserId.current !== nextId) {
+        currentUserId.current = nextId;
+        setEditingScenario(null);
+      }
+      setUser(nextUser);
       setAuthReady(true);
     });
     return () => data.subscription.unsubscribe();
@@ -144,7 +152,7 @@ function App() {
       <h1>Trip Feasibility Simulator</h1>
 
       {authReady ? (
-        <AccountPanel key={user?.id ?? "guest"} user={user} />
+        <AccountPanel key={`account-${user?.id ?? "guest"}`} user={user} />
       ) : (
         <p role="status">Checking your account...</p>
       )}
@@ -165,6 +173,12 @@ function App() {
                 accountSaved
                 key={`${user.id}-${savedScenario?.savedAt || "empty"}`}
                 savedTrip={savedScenario}
+                onEditTrip={(scenario) => {
+                  setEditingScenario({ ownerId: user.id, requestId: crypto.randomUUID(), scenario });
+                  const editor = document.getElementById("scenario-comparison");
+                  editor?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+                  editor?.focus({ preventScroll: true });
+                }}
               />
             )}
           </>
@@ -304,6 +318,7 @@ function App() {
           type="button"
           onClick={() => {
             setWeather(null);
+            setEditingScenario(null);
             setAssessmentId((current) => current + 1);
             setShowResults(true);
           }}
@@ -358,7 +373,7 @@ function App() {
       )}
 
       <ScenarioComparison
-        key={user?.id || "guest"}
+        key={`scenarios-${user?.id ?? "guest"}`}
         user={user}
         calculationId={assessmentId}
         tripForm={tripForm}
@@ -367,6 +382,7 @@ function App() {
         showResults={showResults}
         hasInvalidInput={hasInvalidInput}
         savedScenario={savedScenario}
+        editingScenario={editingScenario?.ownerId === user?.id ? editingScenario : null}
         tripBusy={!authReady || tripLoading || Boolean(tripError)}
         onSaveTrip={saveTrip}
         onDeleteTrip={deleteTrip}

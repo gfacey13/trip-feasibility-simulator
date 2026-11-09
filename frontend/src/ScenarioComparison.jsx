@@ -33,6 +33,7 @@ function ScenarioComparison({
   hasInvalidInput,
   calculationId,
   savedScenario,
+  editingScenario,
   tripBusy,
   onSaveTrip,
   onDeleteTrip,
@@ -58,8 +59,19 @@ function ScenarioComparison({
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
   const [lastCalculationId, setLastCalculationId] = useState(null);
+  const [lastEditRequest, setLastEditRequest] = useState(null);
+  const editChanged = editingScenario && editingScenario.requestId !== lastEditRequest;
+
+  if (editChanged) {
+    setLastEditRequest(editingScenario.requestId);
+    setLastCalculationId(calculationId);
+    setScenarios([{ ...editingScenario.scenario, id: 1 }]);
+    setPreferredScenario(1);
+    setSaveError("");
+  }
 
   if (
+    !editChanged &&
     showResults &&
     !hasInvalidInput &&
     calculationId !== lastCalculationId
@@ -76,6 +88,7 @@ function ScenarioComparison({
       cost: String(estimatedTotal),
       travelTime: String(estimatedTravelTime),
       budget: tripForm.budget,
+      travelers: tripForm.travelers,
       pricing: selectedHotel
         ? normalizePricing({
             source: "liteapi-sandbox",
@@ -200,7 +213,7 @@ function ScenarioComparison({
     const tripToSave = {
       ...selected,
       pricing: normalizePricing(selected.pricing),
-      report: buildStoredReport(selected, reportContext),
+      report: buildStoredReport(selected, reportContext, editingScenario?.scenario),
       budgetResult:
         Number(selected.cost) <= Number(selected.budget)
           ? "Within budget"
@@ -253,8 +266,9 @@ function ScenarioComparison({
   }
 
   return (
-    <div>
-      <h2>Scenario Comparison</h2>
+    <section id="scenario-comparison" aria-labelledby="scenario-comparison-heading" tabIndex={-1}>
+      <h2 id="scenario-comparison-heading">Scenario Comparison</h2>
+      {editingScenario && <p role="status">Editing your saved trip. Update the fields below, then save your preferred scenario.</p>}
       <p>
         Scenarios are saved snapshots. Changing their fields does not
         fetch new hotel prices or recalculate the total.
@@ -411,7 +425,7 @@ function ScenarioComparison({
           </button>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
