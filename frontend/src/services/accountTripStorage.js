@@ -1,20 +1,21 @@
 import { readSavedTrip } from './savedTripStorage';
 import { createTripRepository } from './tripRepository';
 
-// Compatibility with the existing preferred-trip screen. The full repository
-// supports independent scenarios for SCRUM-68's management UI.
+// Account-owned scenarios are stored independently through the backend repository.
 export function createAccountTripStorage(client) {
   const repository = createTripRepository(client);
   function decode(row) {
     if (!row) return null;
     const trip = readSavedTrip({ getItem: () => JSON.stringify(row.scenario) });
     if (!trip) throw new Error('The saved trip is invalid.');
-    return { ...trip, persistedId: row.id, report: row.report };
+    return { ...trip, travelers: row.scenario.travelers ?? row.report?.travelers ?? null, persistedId: row.id, report: row.report };
   }
   return {
     async load() { return decode((await repository.list())[0]); },
+    async loadAll() { return (await repository.list()).map(decode); },
     async save(_userId, scenario, persistedId) {
-      const { report = null, ...details } = scenario;
+      const { report = null, persistedId: _persistedId, ...details } = scenario;
+      void _persistedId;
       const row = persistedId
         ? await repository.update(persistedId, details, report)
         : await repository.create(details, report);

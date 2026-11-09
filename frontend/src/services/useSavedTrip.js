@@ -14,10 +14,10 @@ export function useSavedTrip(user) {
     generation.current += 1;
     if (!userId) return;
     let active = true;
-    accountTrips.load(userId).then((trip) => {
-      if (active) setAccount({ user, userId, trip, error: '' });
+    accountTrips.loadAll(userId).then((trips) => {
+      if (active) setAccount({ user, userId, trips, error: '' });
     }).catch(() => {
-      if (active) setAccount({ user, userId, trip: null, error: 'Unable to load your saved trip. Please retry.' });
+      if (active) setAccount({ user, userId, trips: [], error: 'Unable to load your saved trip. Please retry.' });
     });
     return () => { active = false; };
   }, [user, userId, retry]);
@@ -39,22 +39,25 @@ export function useSavedTrip(user) {
 
   async function saveTrip(trip) {
     const started = await checkAccount();
-    const saved = await accountTrips.save(userId, trip, current?.trip?.persistedId);
+    const saved = await accountTrips.save(userId, trip, trip.persistedId);
     if (started === generation.current) {
-      setAccount({ user, userId, trip: saved, error: '' });
+      setAccount((previous) => ({ user, userId, trips: [saved, ...previous.trips.filter((item) => item.persistedId !== saved.persistedId)], error: '' }));
+      return saved;
     }
   }
 
-  async function deleteTrip() {
+  async function deleteTrip(persistedId = current?.trips[0]?.persistedId) {
     const started = await checkAccount();
-    await accountTrips.remove(userId, current?.trip?.persistedId);
+    if (!current.trips.some((item) => item.persistedId === persistedId)) throw new Error('Saved trip not found.');
+    await accountTrips.remove(userId, persistedId);
     if (started === generation.current) {
-      setAccount({ user, userId, trip: null, error: '' });
+      setAccount((previous) => ({ user, userId, trips: previous.trips.filter((item) => item.persistedId !== persistedId), error: '' }));
     }
   }
 
   return {
-    savedScenario: userId ? current?.trip ?? null : null,
+    savedScenario: userId ? current?.trips[0] ?? null : null,
+    savedTrips: userId ? current?.trips ?? [] : [],
     loading,
     error: current?.error ?? '',
     retryLoad: () => { setAccount(null); setRetry((value) => value + 1); },

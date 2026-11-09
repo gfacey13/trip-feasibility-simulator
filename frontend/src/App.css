@@ -419,3 +419,8 @@ main {
 .dashboard-summary h4 {
   margin-top: 0;
 }
+.compare-trip-choice { display: flex; align-items: center; gap: 0.5rem; margin: 1rem 0; }
+.saved-comparison-scroll { max-width: 100%; overflow-x: auto; margin: 1rem 0; }
+.saved-comparison-table { border-collapse: collapse; width: 100%; }
+.saved-comparison-table th, .saved-comparison-table td { padding: 0.75rem; border: 1px solid #888; text-align: left; vertical-align: top; min-width: 10rem; }
+.dashboard-card button { margin: 0.25rem; }
