@@ -1,6 +1,8 @@
+import { speeds } from "./services/transportationSpeeds";
 import { formatMoney } from "./services/formatMoney";
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
+import { useDrivingRoute } from "./services/useDrivingRoute";
 import TravelTime from "./TravelTime";
 import TripInputForm from "./TripInputForm";
 import ScenarioComparison from "./ScenarioComparison";
@@ -14,13 +16,6 @@ import AccountPanel from "./AccountPanel";
 import { evaluateFeasibility } from "./services/evaluateFeasibility";
 import { useSavedTrip } from "./services/useSavedTrip";
 import { supabase } from "./services/supabaseClient";
-
-const speeds = {
-  car: 60,
-  bus: 45,
-  train: 80,
-  plane: 500,
-};
 
 function validNumber(value, minimum) {
   return (
@@ -46,7 +41,9 @@ function App() {
   const [selectedHotel, setSelectedHotel] = useState(null);
   const [hotelRooms, setHotelRooms] = useState(() => roomsForTravelers(""));
   const [showResults, setShowResults] = useState(false);
-  const [distance, setDistance] = useState("");
+  const [manualDistance, setDistance] = useState("");
+  const [manualHours, setManualHours] = useState("");
+  const [useManualRoute, setUseManualRoute] = useState(false);
   const [maxTravelTime, setMaxTravelTime] = useState("");
   const [weather, setWeather] = useState(null);
   const [assessmentId, setAssessmentId] = useState(0);
@@ -76,6 +73,12 @@ function App() {
     return () => data.subscription.unsubscribe();
   }, []);
 
+  const driving = useDrivingRoute(tripForm, user?.id);
+  const route = useManualRoute ? null : driving.route;
+  const distance = route?.distanceMiles ?? manualDistance;
+  const validDistance = validNumber(distance, 0) && Number(distance) > 0;
+  const validManualHours = manualHours === "" || (validNumber(manualHours, 0) && Number(manualHours) > 0);
+
   const hasDates = Boolean(tripForm.startDate && tripForm.endDate);
   const startTime = Date.parse(`${tripForm.startDate}T00:00:00Z`);
   const endTime = Date.parse(`${tripForm.endDate}T00:00:00Z`);
@@ -94,8 +97,8 @@ function App() {
   const hasInvalidInput =
     !validNumber(maxTravelTime, 0) ||
     Number(maxTravelTime) <= 0 ||
-    !validNumber(distance, 0) ||
-    Number(distance) <= 0 ||
+    !validDistance ||
+    (!route && !validManualHours) ||
     !validNumber(tripForm.travelers, 1) ||
     !Number.isInteger(Number(tripForm.travelers)) ||
     tripForm.origin.trim() === "" ||
@@ -122,9 +125,15 @@ function App() {
 
   const estimatedTotal = transportationTotal + lodgingTotal;
 
-  const travelTime = speeds[tripForm.transportation]
-    ? Number(distance) / speeds[tripForm.transportation]
-    : null;
+  const travelTime = route ? route.durationMinutes / 60
+    : manualHours !== "" ? Number(manualHours)
+    : speeds[tripForm.transportation] ? Number(distance) / speeds[tripForm.transportation] : null;
+  const travelEstimate = route ?? (validDistance && validManualHours && travelTime > 0 ? {
+    distanceMiles: Number(distance),
+    durationMinutes: travelTime * 60,
+    source: manualHours === "" ? "Distance and assumed speed" : "Manual entry",
+    oneWay: true,
+  } : null);
 
   const estimatedTravelTime =
     Number.isFinite(travelTime) && travelTime > 0
@@ -225,6 +234,13 @@ function App() {
         onFormChange={(updatedForm) => {
           if (updatedForm.travelers !== tripForm.travelers) {
             setHotelRooms(roomsForTravelers(updatedForm.travelers));
+          }
+          if (updatedForm.origin !== tripForm.origin || updatedForm.destination !== tripForm.destination
+            || updatedForm.transportation !== tripForm.transportation
+            || updatedForm.originCity !== tripForm.originCity || updatedForm.destinationCity !== tripForm.destinationCity) {
+            setDistance("");
+            setManualHours("");
+            setUseManualRoute(false);
           }
           setTripForm(updatedForm);
           setSelectedHotel(null);
@@ -328,13 +344,19 @@ function App() {
       </div>
       <div className="travel-fields">
       <TravelTime
-        showErrors={showResults}
         transportation={tripForm.transportation}
-        onDistanceChange={(newDistance) => {
-          setDistance(newDistance);
-          setShowResults(false);
-        }}
-        showResults={showResults}
+        distance={manualDistance}
+        manualHours={manualHours}
+        route={route}
+        loading={driving.loading && !useManualRoute}
+        routeError={driving.error}
+        routeHint={tripForm.transportation === "car" && (!driving.ready
+          ? "Select both cities from the suggestions to estimate a driving route."
+          : !user ? "Log in to retrieve a driving route." : "")}
+        onDistanceChange={(value) => { setDistance(value); setUseManualRoute(true); setShowResults(false); }}
+        onHoursChange={(value) => { setManualHours(value); setUseManualRoute(true); setShowResults(false); }}
+        onUseManual={() => { setUseManualRoute(true); setShowResults(false); }}
+        showErrors={showResults}
       />
 
       <div className="travel-limit form-group">
@@ -380,7 +402,8 @@ function App() {
                 ["transportation", Boolean(speeds[tripForm.transportation])],
                 ["transportationCost", validNumber(transportationCost, 0)],
                 ["lodgingCost", Boolean(selectedHotel) || validNumber(lodgingCost, 0)],
-                ["distance", validNumber(distance, 0) && Number(distance) > 0],
+                ["distance", validDistance],
+                ["manualTravelHours", route || validManualHours],
                 ["maxTravelTime", validNumber(maxTravelTime, 0) && Number(maxTravelTime) > 0],
               ].find(([, valid]) => !valid)?.[0];
               document.getElementById(invalidField)?.focus();
@@ -411,6 +434,7 @@ function App() {
             analysis={analysis}
             estimatedTotal={estimatedTotal}
             travelTime={travelTime}
+            travelEstimate={travelEstimate}
             maxTravelTime={Number(maxTravelTime)}
             weather={weather}
             budget={Number(tripForm.budget)}
@@ -430,6 +454,7 @@ function App() {
             lodgingTotal={lodgingTotal}
             estimatedTotal={estimatedTotal}
             estimatedTravelTime={estimatedTravelTime}
+            travelEstimate={travelEstimate}
             analysis={analysis}
             weather={weather}
             maxTravelTime={Number(maxTravelTime)}
@@ -454,7 +479,7 @@ function App() {
         onDeleteTrip={deleteTrip}
         reportContext={{
           tripForm, transportationTotal, lodgingTotal, estimatedTotal,
-          estimatedTravelTime, maxTravelTime, analysis, weather,
+          estimatedTravelTime, travelEstimate, maxTravelTime, analysis, weather,
         }}
         selectedHotel={selectedHotel}
       />

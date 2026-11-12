@@ -112,6 +112,9 @@ function SavedTripCard({ savedTrip, onEditTrip, onDeleteTrip }) {
                   : "Not available"}
               </p>
 
+              {Number.isFinite(savedTrip.report?.travelEstimate?.distanceMiles) && (
+                <p><strong>One-way distance:</strong> {savedTrip.report.travelEstimate.distanceMiles.toFixed(1)} miles ({savedTrip.report.travelEstimate.source})</p>
+              )}
               <p>
                 <strong>Budget feasibility:</strong>{" "}
                 <span className={`status-badge ${savedTrip.budgetResult === "Over budget" ? "over-budget" : ""}`}>{savedTrip.budgetResult || "No saved result"}</span>

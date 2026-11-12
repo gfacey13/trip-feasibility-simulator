@@ -90,6 +90,7 @@ function ScenarioComparison({
       travelTime: String(estimatedTravelTime),
       budget: tripForm.budget,
       travelers: tripForm.travelers,
+      comparisonLodging: reportContext.lodgingTotal,
       pricing: selectedHotel
         ? normalizePricing({
             source: "liteapi-sandbox",
@@ -115,7 +116,34 @@ function ScenarioComparison({
   function updateScenario(id, field, value) {
     setScenarios((current) =>
       current.map((scenario) => {
-        if (scenario.id !== id) return scenario;
+        if (scenario.id !== id || scenario[field] === value) return scenario;
+
+        const next = { ...scenario, [field]: value };
+        const lodging = scenario.comparisonLodging === null ? null : scenario.comparisonLodging ?? scenario.report?.lodgingTotal
+          ?? normalizePricing(scenario.pricing).lodgingTotal;
+
+        if (field === "transportation") {
+          next.travelTime = "";
+          next.cost = "";
+          next.comparisonLodging = lodging;
+          next.comparisonFare = "";
+          next.comparisonTime = null;
+          return next;
+        }
+
+        if (field === "comparisonFare") {
+          next.cost = validNumber(value, 0)
+            ? String(Math.round((Number(lodging) + Number(value)) * 100) / 100) : "";
+          return next;
+        }
+
+        if (field === "travelTime") next.comparisonTime = null;
+        if (field === "cost" && scenario.comparisonFare !== undefined) next.comparisonFare = undefined;
+        if (["origin", "destination", "startDate", "endDate"].includes(field)) {
+          next.comparisonLodging = null;
+          next.comparisonFare = undefined;
+          next.comparisonTime = null;
+        }
 
         let pricing = scenario.pricing;
 
@@ -124,7 +152,6 @@ function ScenarioComparison({
           "destination",
           "startDate",
           "endDate",
-          "transportation",
           "cost",
         ].includes(field);
 
@@ -139,7 +166,7 @@ function ScenarioComparison({
           };
         }
 
-        return { ...scenario, [field]: value, pricing };
+        return { ...next, pricing };
       })
     );
 
@@ -212,11 +239,15 @@ function ScenarioComparison({
       return;
     }
 
-    const { reportBaseline, ...details } = selected;
+    const { reportBaseline, comparisonFare, comparisonLodging, comparisonTime, ...details } = selected;
     const tripToSave = {
       ...details,
       pricing: normalizePricing(selected.pricing),
-      report: buildStoredReport(selected, reportContext, reportBaseline ?? null),
+      report: buildStoredReport(selected, reportContext, reportBaseline ?? null, {
+        travelEstimate: comparisonTime,
+        transportationTotal: validNumber(comparisonFare, 0) ? Number(comparisonFare) : undefined,
+        lodgingTotal: validNumber(comparisonFare, 0) ? Number(comparisonLodging) : undefined,
+      }),
       budgetResult:
         Number(selected.cost) <= Number(selected.budget)
           ? "Within budget"
@@ -275,8 +306,8 @@ function ScenarioComparison({
       <h2 id="scenario-comparison-heading">Scenario Comparison</h2>
       {editingScenario && <p role="status">Editing your saved trip. Update the fields below, then save your preferred scenario.</p>}
       <p>
-        Scenarios are saved snapshots. Changing their fields does not
-        fetch new hotel prices or recalculate the total.
+        Enter a transportation cost for the whole group to update the total with the same lodging estimate.
+        If travel time is unavailable for the new mode, you can enter a one-way time manually.
       </p>
 
       {saveError && (
@@ -337,10 +368,20 @@ function ScenarioComparison({
               </select>
             </div>
 
+            {scenario.comparisonFare !== undefined && validNumber(scenario.comparisonLodging, 0) && (
+              <div className="form-group">
+                <label htmlFor={`fare-${scenario.id}`}>Transportation cost for all travelers ($)</label>
+                <input id={`fare-${scenario.id}`} type="number" min="0" step="any"
+                  value={scenario.comparisonFare}
+                  onChange={(event) => updateScenario(scenario.id, "comparisonFare", event.target.value)} />
+                <small>Lodging estimate: {formatMoney(scenario.comparisonLodging)}</small>
+              </div>
+            )}
+
             <div className="scenario-results">
               <p>
                 <strong>Estimated Cost:</strong>{" "}
-                {scenario.cost === "" ? "Not entered" : formatMoney(scenario.cost)}
+                {scenario.cost === "" ? "Enter a transportation cost or trip total" : formatMoney(scenario.cost)}
               </p>
               <p>
                 <strong>Pricing Source:</strong>{" "}
@@ -349,9 +390,12 @@ function ScenarioComparison({
               <p>
                 <strong>Travel Time:</strong>{" "}
                 {scenario.travelTime === ""
-                  ? "Not entered"
+                  ? scenario.comparisonTime === null ? "Unavailable" : "Not entered"
                   : `${scenario.travelTime} hours`}
               </p>
+              {scenario.comparisonTime === null && scenario.travelTime === "" && <small>
+                Route time is unavailable for this option. Enter a one-way travel time if you have one.
+              </small>}
               <p>
                 <strong>Within Budget:</strong> {budgetLabel(scenario)}
               </p>

@@ -2,7 +2,7 @@ import { formatMoney } from "./services/formatMoney";
 import { evaluateFeasibility } from "./services/evaluateFeasibility";
 
 function FeasibilityAnalysis({
-  estimatedTotal, travelTime, budget, maxTravelTime, weather, analysis,
+  estimatedTotal, travelTime, budget, maxTravelTime, weather, analysis, travelEstimate,
 }) {
   // Recalculate automatically when the forecast arrives or a constraint changes.
   const result = analysis ?? evaluateFeasibility({
@@ -25,7 +25,7 @@ function FeasibilityAnalysis({
           {result.reasons.map((reason) => <li key={reason}>{reason}</li>)}
         </ul>
       </div>
-      <p>Travel time is a distance-based estimate. Weather coverage is destination only.</p>
+      <p>Travel time is a one-way estimate{travelEstimate && ` (${travelEstimate.source})`}. Weather coverage is destination only.</p>
     </section>
   );
 }

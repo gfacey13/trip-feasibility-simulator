@@ -25,3 +25,10 @@ describe('persisted report snapshot', () => {
     expect(snapshot.analysis.status).toBe('Checking weather');
   });
 });
+
+it("keeps a retrieved route after a budget edit and removes it after a duration edit", () => {
+  const travelEstimate = { distanceMiles: 629, durationMinutes: 694.56, source: "OpenRouteService", oneWay: true };
+  const original = { ...scenario, report: buildStoredReport(scenario, { ...context, travelEstimate }) };
+  expect(buildStoredReport({ ...scenario, budget: "800" }, context, original).travelEstimate).toEqual(travelEstimate);
+  expect(buildStoredReport({ ...scenario, travelTime: "6" }, context, original).travelEstimate).toBeNull();
+});
