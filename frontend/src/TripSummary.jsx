@@ -10,6 +10,7 @@ function TripSummary({
   maxTravelTime,
   analysis,
   weather,
+  travelEstimate,
   selectedHotel,
 }) {
   const hasWeather =
@@ -78,6 +79,7 @@ function TripSummary({
       </p>
       <p><strong>Your Travel-Time Limit:</strong> {maxTravelTime} hours</p>
 
+      {travelEstimate && <p><strong>One-way distance:</strong> {travelEstimate.distanceMiles.toFixed(1)} miles ({travelEstimate.source})</p>}
       <h3>Weather Information</h3>
       {hasWeather ? (
         <>
